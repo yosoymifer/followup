@@ -24,9 +24,16 @@ export async function POST(req: Request) {
             // You might want to create one or return error
         }
 
+        const orgId = organization?.id || 'default_org_id';
+
         // 2. Create or Update Lead in our DB
         const lead = await prisma.lead.upsert({
-            where: { phone: phone }, // Simplified logic, ideally use organizationId + phone index
+            where: {
+                organizationId_phone: {
+                    organizationId: orgId,
+                    phone: phone
+                }
+            },
             update: {
                 firstName: first_name,
                 lastName: last_name,

@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  ghlAccessToken  String?
+  ghlLocationId   String?
+  waPhoneNumberId String?
+  waAccessToken   String?
+  leads           Lead[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Lead {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  ghlContactId    String?
+  firstName       String?
+  lastName        String?
+  email           String?
+  phone           String?
+  status          String       @default("NEW")
+  tags            String[]     @default([])
+  context         Json?        // To store AI context or last GHL data
+  messages        Message[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([phone])
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  leadId          String
+  lead            Lead     @relation(fields: [leadId], references: [id])
+  content         String
+  direction       String   // "INBOUND" or "OUTBOUND"
+  type            String   @default("TEXT") // "TEXT", "TEMPLATE"
+  aiGenerated     Boolean  @default(false)
+  waMessageId     String?
+  status          String?  // "SENT", "DELIVERED", "READ", "FAILED"
+  createdAt       DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model Template {
+  id              String   @id @default(cuid())
+  name            String
+  content         String   // The text with placeholders like {{1}}
+  category        String?
+  language        String   @default("es")
+  status          String   @default("APPROVED")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

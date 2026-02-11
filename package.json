@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:push": "prisma db push",
+    "db:seed": "node scripts/seed-org.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

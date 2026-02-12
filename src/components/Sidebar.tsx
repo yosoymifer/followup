@@ -1,5 +1,8 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
+import { useSession, signOut } from 'next-auth/react';
 import {
     LayoutDashboard,
     Users,
@@ -7,10 +10,13 @@ import {
     Settings,
     History,
     Layers,
-    Sparkles
+    Sparkles,
+    LogOut
 } from 'lucide-react';
 
 const Sidebar = () => {
+    const { data: session } = useSession();
+
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
         { icon: Users, label: 'Leads', href: '/leads' },
@@ -46,16 +52,24 @@ const Sidebar = () => {
                 ))}
             </nav>
 
-            <div className="p-4 border-t border-slate-800">
+            <div className="p-4 border-t border-slate-800 space-y-2">
                 <div className="flex items-center gap-3 px-2 py-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 items-center justify-center flex">
-                        <Users className="w-5 h-5 text-slate-400" />
+                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 items-center justify-center flex uppercase font-bold text-indigo-400">
+                        {session?.user?.name?.[0] || <Users className="w-5 h-5 text-slate-400" />}
                     </div>
-                    <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-white">Client Admin</span>
-                        <span className="text-xs text-slate-500">Premium Plan</span>
+                    <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-semibold text-white truncate">{session?.user?.name || 'Admin'}</span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Premium Plan</span>
                     </div>
                 </div>
+
+                <button
+                    onClick={() => signOut()}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all group"
+                >
+                    <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    <span className="text-sm font-medium">Cerrar Sesión</span>
+                </button>
             </div>
         </div>
     );

@@ -10,6 +10,7 @@ RUN npm install --legacy-peer-deps
 
 # Rebuild the source code only when needed
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

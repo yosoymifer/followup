@@ -9,11 +9,13 @@ import {
     CheckCircle2,
     Clock,
     AlertCircle,
-    Loader2
+    Loader2,
+    MessageSquare
 } from 'lucide-react';
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
 import { handleGHLImport } from "./actions";
+import { ImportButton } from "./ImportButton";
 
 const StatusBadge = ({ status }: { status: string }) => {
     const styles: any = {
@@ -156,7 +158,3 @@ export default async function LeadsPage() {
         </div>
     );
 }
-
-// Separate Client Component for the Import Button to avoid re-rendering entire page
-import { ImportButton } from "./ImportButton";
-import { MessageSquare } from 'lucide-react';

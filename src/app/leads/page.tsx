@@ -9,13 +9,16 @@ import {
     CheckCircle2,
     Clock,
     AlertCircle,
-    Loader2,
-    MessageSquare
+    MessageSquare,
+    Upload,
+    Sparkles
 } from 'lucide-react';
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
-import { handleGHLImport } from "./actions";
+import { redirect } from "next/navigation";
 import { ImportButton } from "./ImportButton";
+import CSVImporter from "@/components/CSVImporter";
+import { LeadActions } from "./LeadActions";
 
 const StatusBadge = ({ status }: { status: string }) => {
     const styles: any = {
@@ -24,9 +27,10 @@ const StatusBadge = ({ status }: { status: string }) => {
         PENDING: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
         COLD: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
         WON: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        CONTACTED: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     };
     return (
-        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${styles[status]}`}>
+        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${styles[status] || styles['NEW']}`}>
             {status}
         </span>
     );
@@ -34,7 +38,8 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 export default async function LeadsPage() {
     const session = await auth();
-    const organizationId = (session?.user as any)?.organizationId || 'pascual_prod';
+    const organizationId = (session?.user as any)?.organizationId;
+    if (!organizationId) redirect("/login");
 
     const leads = await prisma.lead.findMany({
         where: { organizationId },
@@ -50,16 +55,15 @@ export default async function LeadsPage() {
             <div className="flex justify-between items-end">
                 <div>
                     <h1 className="text-3xl font-extrabold text-white tracking-tight">Gestión de Leads</h1>
-                    <p className="text-slate-400 mt-1">Administra tus contactos sincronizados de GHL.</p>
+                    <p className="text-slate-400 mt-1">Importa desde CSV o sincroniza desde GHL.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-medium transition-all flex items-center gap-2 border border-slate-700">
-                        <Filter className="w-4 h-4" />
-                        Filtros
-                    </button>
                     <ImportButton />
                 </div>
             </div>
+
+            {/* CSV Importer Section */}
+            <CSVImporter />
 
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden backdrop-blur-sm">
                 <div className="p-4 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between gap-4">
@@ -71,12 +75,9 @@ export default async function LeadsPage() {
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-slate-300 placeholder:text-slate-600"
                         />
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-slate-500 mr-2">Acciones masivas:</span>
-                        <button className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors" title="Enviar Mensaje"><Mail className="w-4 h-4" /></button>
-                        <button className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors" title="Asignar Etiqueta"><TagIcon className="w-4 h-4" /></button>
-                        <button className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors" title="Marcar como Ganado"><CheckCircle2 className="w-4 h-4" /></button>
-                    </div>
+                    <span className="text-xs font-medium text-slate-500 bg-slate-800 px-3 py-1 rounded-lg">
+                        {totalLeads} leads
+                    </span>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -86,9 +87,9 @@ export default async function LeadsPage() {
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Lead</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Contacto</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Estado</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Etiquetas</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Interacciones</th>
-                                <th className="px-6 py-4"></th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Último Contacto</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Mensajes</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
@@ -96,7 +97,13 @@ export default async function LeadsPage() {
                                 <tr key={lead.id} className="hover:bg-slate-800/30 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-white">{lead.firstName} {lead.lastName}</div>
-                                        <div className="text-xs text-slate-500 uppercase tracking-tighter">ID: {lead.id.slice(0, 8)}</div>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {lead.tags.slice(0, 2).map((tag: string) => (
+                                                <span key={tag} className="text-[10px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-1">
@@ -106,7 +113,7 @@ export default async function LeadsPage() {
                                                 </div>
                                             )}
                                             <div className="flex items-center gap-2 text-sm text-slate-300 font-mono">
-                                                <Phone className="w-3 h-3 text-slate-500" /> {lead.phone}
+                                                <Phone className="w-3 h-3 text-slate-500" /> {lead.phone || '-'}
                                             </div>
                                         </div>
                                     </td>
@@ -114,30 +121,30 @@ export default async function LeadsPage() {
                                         <StatusBadge status={lead.status} />
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {lead.tags.map((tag: string) => (
-                                                <span key={tag} className="text-[10px] font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                            {lead.tags.length === 0 && <span className="text-[10px] text-slate-600">-</span>}
+                                        <div className="text-xs text-slate-400">
+                                            {lead.lastContactedAt
+                                                ? new Date(lead.lastContactedAt).toLocaleDateString('es', { day: '2-digit', month: 'short' })
+                                                : <span className="text-slate-600">Nunca</span>
+                                            }
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                            <MessageSquare className="w-3 h-3" /> {lead._count.messages} mensajes
+                                            <MessageSquare className="w-3 h-3" /> {lead._count.messages}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 transition-colors">
-                                            <MoreHorizontal className="w-4 h-4" />
-                                        </button>
+                                    <td className="px-6 py-4">
+                                        <LeadActions leadId={lead.id} leadName={lead.firstName || 'Lead'} />
                                     </td>
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-20 text-center text-slate-500">
-                                        No hay leads importados todavía.
+                                    <td colSpan={6} className="px-6 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Upload className="w-10 h-10 text-slate-600" />
+                                            <p className="text-slate-500 font-medium">No hay leads todavía</p>
+                                            <p className="text-slate-600 text-sm">Sube un archivo CSV o importa desde GHL</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -149,10 +156,6 @@ export default async function LeadsPage() {
                     <span className="text-xs text-slate-500 font-medium tracking-tight">
                         Mostrando {leads.length} de {totalLeads} leads
                     </span>
-                    <div className="flex gap-2">
-                        <button className="px-3 py-1 rounded border border-slate-800 text-xs font-medium text-slate-400 hover:bg-slate-800 transition-colors disabled:opacity-50" disabled>Anterior</button>
-                        <button className="px-3 py-1 rounded border border-slate-800 text-xs font-medium text-slate-400 hover:bg-slate-800 transition-colors" disabled={leads.length >= totalLeads}>Siguiente</button>
-                    </div>
                 </div>
             </div>
         </div>

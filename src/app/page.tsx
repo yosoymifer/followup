@@ -10,10 +10,12 @@ import {
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
 import { AIPendingList } from "@/components/AIPendingList";
+import { redirect } from "next/navigation";
 
 export default async function Dashboard() {
   const session = await auth();
-  const organizationId = (session?.user as any)?.organizationId || 'pascual_prod';
+  const organizationId = (session?.user as any)?.organizationId;
+  if (!organizationId) redirect("/login");
 
   // 1. Fetch Real Stats & Drafts
   const [totalLeads, todayFollowups, responseRate, pendingAI, drafts] = await Promise.all([

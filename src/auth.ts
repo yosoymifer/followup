@@ -59,4 +59,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         signIn: "/login",
     },
     secret: process.env.AUTH_SECRET,
+    trustHost: true, // Allow Easypanel and other production hosts
 });

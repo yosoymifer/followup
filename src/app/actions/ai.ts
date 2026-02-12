@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { generateFollowupMessage } from "@/lib/openai";
 import { revalidatePath } from "next/cache";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 export async function generateAIAction(leadId: string) {
     const session = await auth();
@@ -65,12 +66,23 @@ export async function sendAIAction(messageId: string) {
             return { error: "Mensaje no válido o ya enviado" };
         }
 
-        // HERE: Integration with WhatsApp Cloud API would go
-        // For now, let's mark it as SENT
+        if (!message.lead.phone) {
+            return { error: "El lead no tiene teléfono asignado" };
+        }
+
+        // Enviar a través de WhatsApp Cloud API
+        const waResponse = await sendWhatsAppMessage(
+            organizationId,
+            message.lead.phone,
+            message.content
+        );
 
         await prisma.message.update({
             where: { id: messageId },
-            data: { status: 'SENT' }
+            data: {
+                status: 'SENT',
+                waMessageId: waResponse.messages?.[0]?.id
+            }
         });
 
         revalidatePath("/leads");

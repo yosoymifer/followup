@@ -7,13 +7,40 @@ import {
   ArrowUpRight,
   Sparkles
 } from 'lucide-react';
+import prisma from "@/lib/prisma";
+import { auth } from "@/auth";
 
-export default function Dashboard() {
+export default async function Dashboard() {
+  const session = await auth();
+  const organizationId = (session?.user as any)?.organizationId || 'pascual_prod';
+
+  // 1. Fetch Real Stats
+  const [totalLeads, todayFollowups, responseRate, pendingAI] = await Promise.all([
+    prisma.lead.count({ where: { organizationId } }),
+    prisma.message.count({
+      where: {
+        lead: { organizationId },
+        createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+        direction: 'OUTBOUND'
+      }
+    }),
+    prisma.lead.count({ where: { organizationId, status: 'WON' } }), // Simplified proxy for conversion
+    prisma.lead.count({ where: { organizationId, status: 'PENDING' } }),
+  ]);
+
+  // 2. Fetch Recent Activity
+  const recentMessages = await prisma.message.findMany({
+    where: { lead: { organizationId } },
+    take: 4,
+    orderBy: { createdAt: 'desc' },
+    include: { lead: true }
+  });
+
   const stats = [
-    { label: 'Leads Totales', value: '1,500', icon: Users, change: '+12%', color: 'from-blue-500 to-indigo-600' },
-    { label: 'Seguimientos Hoy', value: '42', icon: MessageSquare, change: '+5%', color: 'from-purple-500 to-pink-600' },
-    { label: 'Tasa de Respuesta', value: '28%', icon: TrendingUp, change: '+2%', color: 'from-emerald-500 to-teal-600' },
-    { label: 'Pendientes IA', value: '12', icon: Clock, change: '-3', color: 'from-amber-500 to-orange-600' },
+    { label: 'Leads Totales', value: totalLeads.toLocaleString(), icon: Users, change: '+12%', color: 'from-blue-500 to-indigo-600' },
+    { label: 'Seguimientos Hoy', value: todayFollowups.toString(), icon: MessageSquare, change: '+5%', color: 'from-purple-500 to-pink-600' },
+    { label: 'Conversion Rate', value: `${((responseRate / (totalLeads || 1)) * 100).toFixed(1)}%`, icon: TrendingUp, change: '+2%', color: 'from-emerald-500 to-teal-600' },
+    { label: 'Pendientes IA', value: pendingAI.toString(), icon: Clock, change: '-3', color: 'from-amber-500 to-orange-600' },
   ];
 
   return (
@@ -21,7 +48,9 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Bienvenido, Admin</h1>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            Bienvenido, {session?.user?.name || 'Admin'}
+          </h1>
           <p className="text-slate-400 mt-1">Aquí está el resumen de tu rendimiento hoy.</p>
         </div>
         <button className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95">
@@ -63,20 +92,32 @@ export default function Dashboard() {
               </button>
             </div>
             <div className="divide-y divide-slate-800">
-              {[1, 2, 3, 4].map((_, i) => (
-                <div key={i} className="p-6 flex items-center gap-4 hover:bg-slate-800/30 transition-colors">
-                  <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-indigo-400">
-                    JD
+              {recentMessages.length > 0 ? recentMessages.map((msg: any) => (
+                <div key={msg.id} className="p-6 flex items-center gap-4 hover:bg-slate-800/30 transition-colors">
+                  <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-indigo-400 uppercase">
+                    {msg.lead.firstName?.[0] || 'L'}
+                    {msg.lead.lastName?.[0] || ''}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">Juan Delgado <span className="text-slate-500 font-normal">respondió un seguimiento</span></p>
-                    <p className="text-xs text-slate-500 mt-0.5">"Me interesa el plan premium, ¿puedes enviarme el link?"</p>
+                    <p className="text-sm font-semibold text-white truncate">
+                      {msg.lead.firstName} {msg.lead.lastName}
+                      <span className="text-slate-500 font-normal ml-2">
+                        {msg.direction === 'INBOUND' ? 'respondió un mensaje' : 'envió un seguimiento'}
+                      </span>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate italic">"{msg.content}"</p>
                   </div>
                   <div className="text-right whitespace-nowrap">
-                    <span className="text-xs text-slate-600 font-medium">Hace 5 min</span>
+                    <span className="text-xs text-slate-600 font-medium">
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="p-12 text-center text-slate-500 text-sm">
+                  No hay actividad reciente aún.
+                </div>
+              )}
             </div>
           </div>
         </div>

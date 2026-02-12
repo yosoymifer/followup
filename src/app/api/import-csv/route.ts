@@ -32,11 +32,20 @@ export async function POST(request: NextRequest) {
         // Map common header variations
         const headerMap: Record<string, string> = {};
         for (const h of headers) {
-            if (['nombre', 'first_name', 'firstname', 'first name', 'name'].includes(h)) headerMap['firstName'] = h;
+            // Name variations - including user's specific column
+            if (['nombre', 'nombre del cliente potencial', 'first_name', 'firstname', 'first name', 'name'].includes(h)) headerMap['firstName'] = h;
             else if (['apellido', 'last_name', 'lastname', 'last name', 'surname'].includes(h)) headerMap['lastName'] = h;
-            else if (['email', 'correo', 'e-mail', 'mail'].includes(h)) headerMap['email'] = h;
+            // Email variations - including user's specific column
+            else if (['email', 'correo', 'correo electrónico', 'e-mail', 'mail'].includes(h)) headerMap['email'] = h;
+            // Phone variations - including user's specific column
             else if (['telefono', 'teléfono', 'phone', 'celular', 'mobile', 'whatsapp', 'tel'].includes(h)) headerMap['phone'] = h;
+            // Tags variations - including user's specific column
             else if (['etiquetas', 'tags', 'etiqueta', 'tag'].includes(h)) headerMap['tags'] = h;
+            // Additional fields mapping
+            else if (['fase', 'phase', 'stage', 'etapa'].includes(h)) headerMap['fase'] = h;
+            else if (['fuente', 'source', 'origen'].includes(h)) headerMap['fuente'] = h;
+            else if (['creado el', 'created', 'fecha creación', 'created at'].includes(h)) headerMap['createdDate'] = h;
+            else if (['actualizado el', 'updated', 'fecha actualización', 'updated at'].includes(h)) headerMap['updatedDate'] = h;
         }
 
         if (!headerMap['phone'] && !headerMap['email']) {
@@ -61,7 +70,25 @@ export async function POST(request: NextRequest) {
             const lastName = row[headerMap['lastName'] || ''] || null;
             const email = row[headerMap['email'] || ''] || null;
             let phone = row[headerMap['phone'] || ''] || null;
-            const tags = row[headerMap['tags'] || ''] ? row[headerMap['tags'] || ''].split(',').map(t => t.trim()) : [];
+            const tags = row[headerMap['tags'] || ''] ? row[headerMap['tags'] || ''].split(',').map(t => t.trim()).filter(t => t) : [];
+
+            // Capture additional fields for context
+            const additionalData: Record<string, any> = {};
+
+            // Store all unmapped columns in context
+            headers.forEach((h, idx) => {
+                const value = values[idx];
+                if (value && !Object.values(headerMap).includes(h)) {
+                    // Store columns that weren't mapped to standard fields
+                    additionalData[h] = value;
+                }
+            });
+
+            // Add mapped additional fields
+            if (headerMap['fase'] && row[headerMap['fase']]) additionalData.fase = row[headerMap['fase']];
+            if (headerMap['fuente'] && row[headerMap['fuente']]) additionalData.fuente = row[headerMap['fuente']];
+            if (headerMap['createdDate'] && row[headerMap['createdDate']]) additionalData.createdDate = row[headerMap['createdDate']];
+            if (headerMap['updatedDate'] && row[headerMap['updatedDate']]) additionalData.updatedDate = row[headerMap['updatedDate']];
 
             // Clean phone number
             if (phone) {
@@ -88,6 +115,7 @@ export async function POST(request: NextRequest) {
                             lastName: lastName || undefined,
                             email: email || undefined,
                             tags: { set: tags.length > 0 ? tags : undefined },
+                            context: Object.keys(additionalData).length > 0 ? additionalData : undefined,
                         },
                         create: {
                             organizationId,
@@ -97,6 +125,7 @@ export async function POST(request: NextRequest) {
                             phone,
                             tags,
                             status: 'NEW',
+                            context: Object.keys(additionalData).length > 0 ? additionalData : undefined,
                         },
                     });
                 } else {
@@ -109,6 +138,7 @@ export async function POST(request: NextRequest) {
                             phone,
                             tags,
                             status: 'NEW',
+                            context: Object.keys(additionalData).length > 0 ? additionalData : undefined,
                         },
                     });
                 }

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import prisma from './prisma';
 
-export async function importLeadsFromGHL(organizationId: string) {
+export async function importLeadsFromGHL(organizationId: string, tag?: string) {
     const organization = await prisma.organization.findUnique({
         where: { id: organizationId }
     });
@@ -11,12 +11,11 @@ export async function importLeadsFromGHL(organizationId: string) {
     }
 
     try {
-        // Note: GHL API v2 uses Bearer token
-        // This is a simplified fetch. Real GHL API might require pagination.
         const response = await axios.get('https://services.leadconnectorhq.com/contacts/', {
             params: {
                 locationId: organization.ghlLocationId,
-                limit: 100 // We should implement pagination if there are 1500
+                limit: 100, // Still 100 per page, pagination for 1,500 needs a loop
+                tags: tag ? [tag] : undefined // Optional tag filter
             },
             headers: {
                 'Authorization': `Bearer ${organization.ghlAccessToken}`,

@@ -8,11 +8,14 @@ export function ImportButton() {
     const [loading, setLoading] = useState(false);
 
     const onImport = async () => {
-        if (!confirm("¿Estás seguro de que deseas importar los contactos de Go High Level?")) return;
+        const tag = prompt("¿Deseas filtrar por una etiqueta de GHL? (Ej: 'followup-ai-stale'). Déjalo vacío para importar todos");
+        if (tag === null) return; // Cancelado por el usuario
+
+        if (!confirm(tag ? `¿Importar solo leads con la etiqueta "${tag}"?` : "¿Estás seguro de que deseas importar TODOS los contactos de Go High Level?")) return;
 
         setLoading(true);
         try {
-            const result = await handleGHLImport();
+            const result = await handleGHLImport(tag || undefined);
             if (result.error) {
                 alert("Error: " + result.error);
             } else {

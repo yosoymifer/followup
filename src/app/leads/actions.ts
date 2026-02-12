@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { importLeadsFromGHL } from "@/lib/ghl";
 import { revalidatePath } from "next/cache";
 
-export async function handleGHLImport() {
+export async function handleGHLImport(tag?: string) {
     const session = await auth();
     const organizationId = (session?.user as any)?.organizationId;
 
@@ -13,7 +13,7 @@ export async function handleGHLImport() {
     }
 
     try {
-        const count = await importLeadsFromGHL(organizationId);
+        const count = await importLeadsFromGHL(organizationId, tag);
         revalidatePath("/leads");
         revalidatePath("/");
         return { success: true, count };

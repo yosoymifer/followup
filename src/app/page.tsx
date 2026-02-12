@@ -9,28 +9,36 @@ import {
 } from 'lucide-react';
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
+import { AIPendingList } from "@/components/AIPendingList";
 
 export default async function Dashboard() {
   const session = await auth();
   const organizationId = (session?.user as any)?.organizationId || 'pascual_prod';
 
-  // 1. Fetch Real Stats
-  const [totalLeads, todayFollowups, responseRate, pendingAI] = await Promise.all([
+  // 1. Fetch Real Stats & Drafts
+  const [totalLeads, todayFollowups, responseRate, pendingAI, drafts] = await Promise.all([
     prisma.lead.count({ where: { organizationId } }),
     prisma.message.count({
       where: {
         lead: { organizationId },
         createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-        direction: 'OUTBOUND'
+        direction: 'OUTBOUND',
+        status: { not: 'DRAFT' }
       }
     }),
-    prisma.lead.count({ where: { organizationId, status: 'WON' } }), // Simplified proxy for conversion
-    prisma.lead.count({ where: { organizationId, status: 'PENDING' } }),
+    prisma.lead.count({ where: { organizationId, status: 'WON' } }),
+    prisma.message.count({ where: { lead: { organizationId }, status: 'DRAFT' } }),
+    prisma.message.findMany({
+      where: { lead: { organizationId }, status: 'DRAFT' },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: { lead: true }
+    })
   ]);
 
   // 2. Fetch Recent Activity
   const recentMessages = await prisma.message.findMany({
-    where: { lead: { organizationId } },
+    where: { lead: { organizationId }, status: { not: 'DRAFT' } },
     take: 4,
     orderBy: { createdAt: 'desc' },
     include: { lead: true }
@@ -82,8 +90,11 @@ export default async function Dashboard() {
 
       {/* Main Content Area */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent Activity */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-8">
+          {/* AI Drafts Approval Section */}
+          <AIPendingList drafts={drafts as any} />
+
+          {/* Recent Activity */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden backdrop-blur-sm">
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/40">
               <h2 className="text-xl font-bold text-white">Actividad Reciente</h2>

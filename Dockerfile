@@ -14,6 +14,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Accept build args for database migration
+ARG DATABASE_URL
+
 # Generate Prisma Client and push schema to DB
 RUN npx prisma generate
 RUN npx prisma db push --accept-data-loss

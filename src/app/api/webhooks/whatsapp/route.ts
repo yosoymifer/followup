@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { processLeadResponse } from '@/lib/agents/bookingAgent';
 
 // 1. GET Request: Verification for Meta Webhooks
 export async function GET(req: Request) {
@@ -9,7 +10,6 @@ export async function GET(req: Request) {
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
 
-    // We'll compare with a VERIFY_TOKEN defined in .env
     if (mode && token) {
         if (mode === 'subscribe' && token === process.env.WA_VERIFY_TOKEN) {
             console.log('WhatsApp Webhook Verified!');
@@ -22,28 +22,28 @@ export async function GET(req: Request) {
 }
 
 // 2. POST Request: Handle incoming messages/statuses
+// Simplified: store message in DB. n8n handles AI agent logic.
 export async function POST(req: Request) {
     try {
         const body = await req.json();
 
-        // Check if it's a message event
         const entry = body.entry?.[0];
         const changes = entry?.changes?.[0];
         const value = changes?.value;
         const message = value?.messages?.[0];
 
         if (message) {
-            const from = message.from; // Phone number
+            const from = message.from;
             const content = message.text?.body;
             const waMessageId = message.id;
 
-            // 1. Find Lead by phone number
+            // Find Lead by phone number
             const lead = await prisma.lead.findFirst({
                 where: { phone: from }
             });
 
             if (lead) {
-                // 2. Store Message
+                // Store Message
                 await prisma.message.create({
                     data: {
                         leadId: lead.id,
@@ -54,11 +54,38 @@ export async function POST(req: Request) {
                     }
                 });
 
-                // TODO: Trigger AI Smart Tagging analysis here
+                // Update Lead's 24h Meta window tracker
+                await prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { lastInboundMessageAt: new Date() } as any
+                });
+
                 console.log(`Received message from ${lead.phone}: ${content}`);
+
+                // Proceed with AI Agent response
+                try {
+                    await processLeadResponse(lead.id, content || '');
+                } catch (aiError) {
+                    console.error('AI Agent Error:', aiError);
+                }
             } else {
                 console.warn(`Message from unknown lead: ${from}`);
-                // Optional: Auto-create lead or store in a 'Unknown' list
+            }
+        }
+
+        // Handle status updates (delivered, read, etc.)
+        const statuses = value?.statuses;
+        if (statuses?.length) {
+            for (const statusUpdate of statuses) {
+                const waMessageId = statusUpdate.id;
+                const newStatus = statusUpdate.status?.toUpperCase(); // DELIVERED, READ, FAILED
+
+                if (waMessageId && newStatus) {
+                    await prisma.message.updateMany({
+                        where: { waMessageId },
+                        data: { status: newStatus },
+                    });
+                }
             }
         }
 

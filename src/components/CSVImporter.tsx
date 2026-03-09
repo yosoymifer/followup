@@ -16,6 +16,7 @@ export default function CSVImporter() {
     const [dragActive, setDragActive] = useState(false);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<ImportResult | null>(null);
+    const [importTags, setImportTags] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFile = async (file: File) => {
@@ -30,6 +31,7 @@ export default function CSVImporter() {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            if (importTags.trim()) formData.append('tags', importTags.trim());
 
             const response = await fetch('/api/import-csv', {
                 method: 'POST',
@@ -60,6 +62,19 @@ export default function CSVImporter() {
 
     return (
         <div className="space-y-4">
+            <div className="bg-slate-900/50 p-4 border border-slate-700/50 rounded-2xl">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Etiquetas a aplicar a todos los leads importados (Opcional, separadas por coma)
+                </label>
+                <input
+                    type="text"
+                    value={importTags}
+                    onChange={(e) => setImportTags(e.target.value)}
+                    placeholder="Ejemplo: lanzamiento_marzo, referidos"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300 placeholder:text-slate-600"
+                />
+            </div>
+
             {/* Drop Zone */}
             <div
                 onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}

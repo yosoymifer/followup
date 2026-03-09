@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import Pagination from '@/components/Pagination';
 import { LeadActions } from './LeadActions';
+import LeadTagsEditor from './LeadTagsEditor';
+
 
 const StatusBadge = ({ status }: { status: string }) => {
     const styles: any = {
@@ -124,13 +126,10 @@ export default function LeadsTable({ initialLeads, totalLeads }: LeadsTableProps
                                         )}
 
                                         {/* Tags */}
-                                        <div className="flex flex-wrap gap-1 mt-2">
-                                            {lead.tags.map((tag: string) => (
-                                                <span key={tag} className="text-[10px] font-bold bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full border border-indigo-500/20">
-                                                    {tag}
-                                                </span>
-                                            ))}
+                                        <div className="mt-2">
+                                            <LeadTagsEditor leadId={lead.id} initialTags={lead.tags} />
                                         </div>
+
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-1">
@@ -161,9 +160,7 @@ export default function LeadsTable({ initialLeads, totalLeads }: LeadsTableProps
                                             <span className="font-mono">{lead._count?.messages || 0}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <LeadActions leadId={lead.id} />
-                                    </td>
+                                    <LeadActions leadId={lead.id} leadName={`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Desconocido'} />
                                 </tr>
                             )) : (
                                 <tr>

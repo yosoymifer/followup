@@ -13,6 +13,8 @@ export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
         const file = formData.get("file") as File;
+        const globalTagsStr = formData.get("tags") as string || "";
+        const globalTags = globalTagsStr.split(',').map((t: string) => t.trim()).filter(Boolean);
 
         if (!file) {
             return NextResponse.json({ error: "No se proporcionó archivo" }, { status: 400 });
@@ -70,7 +72,8 @@ export async function POST(request: NextRequest) {
             const lastName = row[headerMap['lastName'] || ''] || null;
             const email = row[headerMap['email'] || ''] || null;
             let phone = row[headerMap['phone'] || ''] || null;
-            const tags = row[headerMap['tags'] || ''] ? row[headerMap['tags'] || ''].split(',').map(t => t.trim()).filter(t => t) : [];
+            const csvTags = row[headerMap['tags'] || ''] ? row[headerMap['tags'] || ''].split(',').map((t: string) => t.trim()).filter((t: string) => t) : [];
+            const tags = Array.from(new Set([...globalTags, ...csvTags]));
 
             // Capture additional fields for context
             const additionalData: Record<string, any> = {};

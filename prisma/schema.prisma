@@ -9,18 +9,23 @@ datasource db {
 }
 
 model Organization {
-  id              String   @id @default(cuid())
-  name            String
-  ghlAccessToken  String?
-  ghlLocationId   String?
-  waPhoneNumberId String?
-  waAccessToken   String?
-  leads           Lead[]
-  users           User[]
-  sequences       Sequence[]
-  templates       Template[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String     @id @default(cuid())
+  name              String
+  ghlAccessToken    String?
+  ghlLocationId     String?
+  ghlPipelineId     String?
+  ghlStageMap       Json?      // { "NEW": "stageId1", "CONTACTED": "stageId2", ... }
+  waPhoneNumberId   String?
+  waAccessToken     String?
+  defaultSequenceId String?
+  masterPrompt      String?    @db.Text
+  leads             Lead[]
+  users             User[]
+  sequences         Sequence[]
+  templates         Template[]
+  campaigns         Campaign[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 }
 
 model User {
@@ -42,6 +47,7 @@ model Lead {
   organizationId   String
   organization     Organization @relation(fields: [organizationId], references: [id])
   ghlContactId     String?
+  ghlOpportunityId String?
   firstName        String?
   lastName         String?
   email            String?
@@ -51,8 +57,11 @@ model Lead {
   context          Json?
   messages         Message[]
   lastContactedAt  DateTime?
+  lastInboundMessageAt DateTime? // Tracks start of 24h Meta window
   nextFollowupAt   DateTime?
   sequenceStep     Int          @default(0)
+  sequenceActive   Boolean      @default(true)
+  aiEnabled        Boolean      @default(true)
   sequenceId       String?
   sequence         Sequence?    @relation(fields: [sequenceId], references: [id])
   createdAt        DateTime     @default(now())
@@ -62,6 +71,7 @@ model Lead {
   @@index([organizationId])
   @@index([phone])
   @@index([nextFollowupAt])
+  @@index([status])
 }
 
 model Message {
@@ -74,9 +84,12 @@ model Message {
   aiGenerated     Boolean  @default(false)
   waMessageId     String?
   status          String?  // "DRAFT", "SENT", "DELIVERED", "READ", "FAILED"
+  campaignId      String?
+  campaign        Campaign? @relation(fields: [campaignId], references: [id])
   createdAt       DateTime @default(now())
 
   @@index([leadId])
+  @@index([campaignId])
 }
 
 model Template {
@@ -115,10 +128,34 @@ model SequenceStep {
   sequence        Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
   stepNumber      Int
   delayDays       Int      // Days to wait since previous step
+  delayHours      Int      @default(0) // Hours to wait (can be combined with delayDays)
   messageTemplate String   // Text template or AI prompt
   useAI           Boolean  @default(true)
+  isTemplate      Boolean  @default(false) // If true, forces sending as Meta Template
   createdAt       DateTime @default(now())
 
   @@unique([sequenceId, stepNumber])
   @@index([sequenceId])
+}
+
+model Campaign {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  name            String
+  message         String       // Message content or AI prompt
+  useAI           Boolean      @default(false)
+  segment         Json?        // Filter criteria: { tags: [], statuses: [], excludeActive: true }
+  status          String       @default("DRAFT") // DRAFT, ACTIVE, PAUSED, COMPLETED
+  totalLeads      Int          @default(0)
+  sentCount       Int          @default(0)
+  batchSize       Int          @default(50)
+  scheduledAt     DateTime?
+  completedAt     DateTime?
+  messages        Message[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
 }

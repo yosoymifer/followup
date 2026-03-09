@@ -8,8 +8,8 @@ import {
     Users,
     MessageSquare,
     Settings,
-    History,
-    Layers,
+    Send,
+    GitBranch,
     Sparkles,
     LogOut
 } from 'lucide-react';
@@ -20,9 +20,9 @@ const Sidebar = () => {
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
         { icon: Users, label: 'Leads', href: '/leads' },
-        { icon: MessageSquare, label: 'Mensajes', href: '/messages' },
-        { icon: History, label: 'Recuperación', href: '/recovery' },
-        { icon: Layers, label: 'Plantillas', href: '/templates' },
+        { icon: MessageSquare, label: 'Chats', href: '/chats' },
+        { icon: GitBranch, label: 'Secuencias', href: '/sequences' },
+        { icon: Send, label: 'Campañas', href: '/campaigns' },
         { icon: Settings, label: 'Configuración', href: '/settings' },
     ];
 

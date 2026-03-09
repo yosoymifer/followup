@@ -34,3 +34,49 @@ export async function sendWhatsAppMessage(organizationId: string, to: string, me
         throw new Error(error.response?.data?.error?.message || 'Error al enviar mensaje de WhatsApp');
     }
 }
+
+export async function sendWhatsAppTemplate(
+    organizationId: string,
+    to: string,
+    templateName: string,
+    languageCode: string = 'es',
+    components: any[] = []
+) {
+    const organization = await prisma.organization.findUnique({
+        where: { id: organizationId }
+    });
+
+    if (!organization || !organization.waAccessToken || !organization.waPhoneNumberId) {
+        throw new Error('Faltan credenciales de WhatsApp para esta organización');
+    }
+
+    try {
+        const response = await axios.post(
+            `https://graph.facebook.com/v18.0/${organization.waPhoneNumberId}/messages`,
+            {
+                messaging_product: "whatsapp",
+                recipient_type: "individual",
+                to: to.replace(/\D/g, ''),
+                type: "template",
+                template: {
+                    name: templateName,
+                    language: {
+                        code: languageCode
+                    },
+                    components: components
+                }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${organization.waAccessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        return response.data;
+    } catch (error: any) {
+        console.error('WhatsApp Template Error:', error.response?.data || error.message);
+        throw new Error(error.response?.data?.error?.message || 'Error al enviar plantilla de WhatsApp');
+    }
+}

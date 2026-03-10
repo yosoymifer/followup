@@ -24,6 +24,7 @@ interface OrgSettings {
     ghlPipelineId: string | null;
     ghlStageMap: Record<string, string> | null;
     waPhoneNumberId: string | null;
+    waBusinessAccountId: string | null;
     waAccessToken: string | null;
     defaultSequenceId: string | null;
     masterPrompt: string | null;
@@ -75,7 +76,9 @@ export default function SettingsPage() {
 
     // WA credentials
     const [waPhoneNumberId, setWaPhoneNumberId] = useState("");
+    const [waBusinessAccountId, setWaBusinessAccountId] = useState("");
     const [waAccessToken, setWaAccessToken] = useState("");
+    const [syncingTemplates, setSyncingTemplates] = useState(false);
 
     useEffect(() => { fetchSettings(); }, []);
 
@@ -91,6 +94,7 @@ export default function SettingsPage() {
                 setSelectedPipeline(data.ghlPipelineId || "");
                 setStageMap(data.ghlStageMap || {});
                 setWaPhoneNumberId(data.waPhoneNumberId || "");
+                setWaBusinessAccountId(data.waBusinessAccountId || "");
                 setWaAccessToken(data.waAccessToken || "");
                 setMasterPrompt(data.masterPrompt || "");
             }
@@ -153,6 +157,7 @@ export default function SettingsPage() {
         } else if (section === "wa") {
             if (isNewToken(waAccessToken)) body.waAccessToken = waAccessToken;
             if (waPhoneNumberId) body.waPhoneNumberId = waPhoneNumberId;
+            if (waBusinessAccountId) body.waBusinessAccountId = waBusinessAccountId;
         } else if (section === "ai") {
             body.masterPrompt = masterPrompt;
         }
@@ -186,6 +191,25 @@ export default function SettingsPage() {
 
     const toggleToken = (key: string) => {
         setShowTokens(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const handleSyncTemplates = async () => {
+        setSyncingTemplates(true);
+        try {
+            const res = await fetch("/api/templates/sync", {
+                method: "POST",
+            });
+            const data = await res.json();
+            if (data.success) {
+                showFb("✅ " + data.message);
+            } else {
+                showFb("❌ " + data.error);
+            }
+        } catch {
+            showFb("❌ Error de conexión al sincronizar plantillas");
+        } finally {
+            setSyncingTemplates(false);
+        }
     };
 
     // Get stages for the currently selected pipeline
@@ -422,9 +446,26 @@ export default function SettingsPage() {
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                         />
                     </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">WhatsApp Business Account ID</label>
+                        <input
+                            value={waBusinessAccountId}
+                            onChange={(e) => setWaBusinessAccountId(e.target.value)}
+                            placeholder="ej: 1420953372744913"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                    </div>
                 </div>
 
-                <div className="flex justify-end pt-2">
+                <div className="flex justify-between items-center pt-2 border-t border-slate-800/50">
+                    <button
+                        onClick={handleSyncTemplates}
+                        disabled={syncingTemplates || saving}
+                        className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-emerald-500/20 disabled:opacity-50"
+                    >
+                        {syncingTemplates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        Sincronizar Plantillas de Meta
+                    </button>
                     <button
                         onClick={() => handleSave("wa")}
                         disabled={saving}

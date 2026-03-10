@@ -43,12 +43,14 @@ export default function CampaignsPage() {
     const [selectedTemplate, setSelectedTemplate] = useState("");
     const [batchSize, setBatchSize] = useState(50);
     const [excludeActive, setExcludeActive] = useState(true);
+    const [targetType, setTargetType] = useState<"ALL" | "LIST" | "TAGS">("ALL");
     const [filterTags, setFilterTags] = useState<string[]>([]);
     const [excludeTags, setExcludeTags] = useState<string[]>([]);
     const [availableTags, setAvailableTags] = useState<string[]>([]);
     const [lists, setLists] = useState<any[]>([]);
     const [selectedListId, setSelectedListId] = useState<string>("");
     const [scheduledAt, setScheduledAt] = useState("");
+    const [syncingTemplates, setSyncingTemplates] = useState(false);
 
     const fetchCampaigns = async () => {
         try {
@@ -97,15 +99,16 @@ export default function CampaignsPage() {
 
         setSaving(true);
         try {
-            const segment: any = { excludeActive };
-            if (filterTags.length > 0) {
+            const segment: any = { excludeActive, targetType };
+
+            if (targetType === "TAGS" && filterTags.length > 0) {
                 segment.tags = filterTags;
+            }
+            if (targetType === "LIST" && selectedListId) {
+                segment.listId = selectedListId;
             }
             if (excludeTags.length > 0) {
                 segment.excludeTags = excludeTags;
-            }
-            if (selectedListId) {
-                segment.listId = selectedListId;
             }
 
             const res = await fetch("/api/campaigns", {
@@ -139,6 +142,24 @@ export default function CampaignsPage() {
             showFb("❌ Error de conexión");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSyncTemplates = async () => {
+        setSyncingTemplates(true);
+        try {
+            const res = await fetch("/api/templates/sync", { method: "POST" });
+            const data = await res.json();
+            if (data.success) {
+                showFb("✅ " + data.message);
+                fetchCampaigns(); // refresh dropdown
+            } else {
+                showFb("❌ " + data.error);
+            }
+        } catch {
+            showFb("❌ Error al sincronizar plantillas");
+        } finally {
+            setSyncingTemplates(false);
         }
     };
 
@@ -269,8 +290,18 @@ export default function CampaignsPage() {
                     </div>
 
                     {messageType === "TEMPLATE" ? (
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Selecciona una Plantilla Aprobada</label>
+                        <div className="space-y-2 relative">
+                            <div className="flex justify-between items-center">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Selecciona una Plantilla Aprobada</label>
+                                <button
+                                    onClick={handleSyncTemplates}
+                                    disabled={syncingTemplates}
+                                    className="text-[10px] text-amber-500 hover:text-amber-400 font-bold uppercase transition flex items-center gap-1 disabled:opacity-50"
+                                    title="Sincronizar directamente con Meta"
+                                >
+                                    {syncingTemplates ? <div className="w-3 h-3 border-2 border-amber-500/50 border-t-amber-500 rounded-full animate-spin" /> : "↺ Sincronizar"}
+                                </button>
+                            </div>
                             {templates.length > 0 ? (
                                 <select
                                     value={selectedTemplate}
@@ -305,203 +336,223 @@ export default function CampaignsPage() {
                         />
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Lista de Destino</label>
-                            <select
-                                value={selectedListId}
-                                onChange={(e) => setSelectedListId(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            >
-                                <option value="">Todas las Listas</option>
-                                {lists.map(list => (
-                                    <option key={list.id} value={list.id}>{list.name} ({list._count?.leads || 0} leads)</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Incluir Etiquetas</label>
-                            {availableTags.length > 0 ? (
-                                <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-xl max-h-32 overflow-y-auto">
-                                    {availableTags.map(tag => (
-                                        <button
-                                            key={tag}
-                                            onClick={() => {
-                                                if (filterTags.includes(tag)) {
-                                                    setFilterTags(filterTags.filter(t => t !== tag));
-                                                } else {
-                                                    setFilterTags([...filterTags, tag]);
-                                                }
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${filterTags.includes(tag)
-                                                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
-                                                }`}
-                                        >
-                                            {tag}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 italic">
-                                    No hay etiquetas creadas en tus leads.
-                                </div>
-                            )}
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-red-500/80 uppercase">Excluir Etiquetas (Inverso)</label>
-                            {availableTags.length > 0 ? (
-                                <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-xl max-h-32 overflow-y-auto">
-                                    {availableTags.map(tag => (
-                                        <button
-                                            key={tag}
-                                            onClick={() => {
-                                                if (excludeTags.includes(tag)) {
-                                                    setExcludeTags(excludeTags.filter(t => t !== tag));
-                                                } else {
-                                                    setExcludeTags([...excludeTags, tag]);
-                                                }
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${excludeTags.includes(tag)
-                                                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
-                                                }`}
-                                        >
-                                            {tag}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 italic">
-                                    No hay etiquetas creadas.
-                                </div>
-                            )}
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Tamaño de lote</label>
-                            <input
-                                type="number"
-                                value={batchSize}
-                                onChange={(e) => setBatchSize(parseInt(e.target.value) || 50)}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                        </div>
-                    </div>
+                </div>
 
-                    <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase">
-                            <Clock className="w-4 h-4" /> Programar Envío (Opcional)
-                        </label>
-                        <input
-                            type="datetime-local"
-                            value={scheduledAt}
-                            onChange={(e) => setScheduledAt(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
-                        />
-                        <p className="text-[10px] text-slate-500">Déjalo en blanco para permitir la ejecución manual de la campaña a tu propio ritmo.</p>
-                    </div>
-
-                    <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={excludeActive}
-                            onChange={(e) => setExcludeActive(e.target.checked)}
-                            className="rounded border-slate-600 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        Excluir leads que ya están en una secuencia activa
-                    </label>
-
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setShowNew(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">
-                            Cancelar
+                    {/* TARGETING UI REVAMP */}
+            <div className="space-y-4">
+                <div className="space-y-3">
+                    <label className="text-xs font-bold text-slate-500 uppercase">1. ¿A quién enviaremos?</label>
+                    <div className="flex gap-3 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                        <button
+                            onClick={() => setTargetType("ALL")}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${targetType === "ALL" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-slate-400 hover:text-slate-300"}`}
+                        >
+                            Toda la base
                         </button>
                         <button
-                            onClick={handleCreate}
-                            disabled={saving || !name.trim() || (messageType === "TEMPLATE" ? !selectedTemplate : !message.trim())}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                            onClick={() => setTargetType("LIST")}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${targetType === "LIST" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-slate-400 hover:text-slate-300"}`}
                         >
-                            <Send className="w-4 h-4" /> {saving ? "Creando..." : "Crear Campaña"}
+                            A una Lista
+                        </button>
+                        <button
+                            onClick={() => setTargetType("TAGS")}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${targetType === "TAGS" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-slate-400 hover:text-slate-300"}`}
+                        >
+                            Por Etiquetas
                         </button>
                     </div>
                 </div>
-            )
-            }
 
-            {/* Campaign List */}
-            <div className="space-y-4">
-                {campaigns.length === 0 && !showNew && (
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 text-center">
-                        <Send className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                        <p className="text-slate-500 font-medium">No hay campañas</p>
-                        <p className="text-sm text-slate-600 mt-1">Crea tu primera campaña para enviar mensajes masivos.</p>
+                {/* Additional Pickers based on Target Type */}
+                {targetType === "LIST" && (
+                    <div className="space-y-2 p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Selecciona la Lista Mágica</label>
+                        <select
+                            value={selectedListId}
+                            onChange={(e) => setSelectedListId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                            <option value="">Seleccione una lista...</option>
+                            {lists.map(list => (
+                                <option key={list.id} value={list.id}>{list.name} ({list._count?.leads || 0} leads)</option>
+                            ))}
+                        </select>
                     </div>
                 )}
 
-                {campaigns.map((campaign) => {
-                    const progress = campaign.totalLeads > 0 ? (campaign.sentCount / campaign.totalLeads) * 100 : 0;
-                    const sc = statusConfig[campaign.status] || statusConfig.DRAFT;
-
-                    return (
-                        <div key={campaign.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg bg-${sc.color}-500/10`}>
-                                        {sc.icon}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-white">{campaign.name}</h3>
-                                        <span className={`text-xs font-bold text-${sc.color}-400 uppercase`}>{sc.label}</span>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {campaign.status !== "COMPLETED" && (
-                                        <button
-                                            onClick={() => handleProcessBatch(campaign.id, campaign.batchSize)}
-                                            disabled={sendingBatchId === campaign.id}
-                                            className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
-                                        >
-                                            {sendingBatchId === campaign.id ? (
-                                                <><div className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" /> Procesando...</>
-                                            ) : (
-                                                <><Play className="w-3 h-3" /> Procesar Lote ({campaign.batchSize})</>
-                                            )}
-                                        </button>
-                                    )}
+                {targetType === "TAGS" && (
+                    <div className="space-y-2 p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Incluir estas etiquetas</label>
+                        {availableTags.length > 0 ? (
+                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                                {availableTags.map(tag => (
                                     <button
-                                        onClick={() => handleDelete(campaign.id)}
-                                        className="px-3 py-1.5 text-xs text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-red-500/10 rounded-lg transition-all border border-slate-700"
+                                        key={tag}
+                                        onClick={() => {
+                                            if (filterTags.includes(tag)) setFilterTags(filterTags.filter(t => t !== tag));
+                                            else setFilterTags([...filterTags, tag]);
+                                        }}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${filterTags.includes(tag) ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'}`}
                                     >
-                                        <Trash2 className="w-3.5 h-3.5" />
+                                        {tag}
                                     </button>
-                                </div>
+                                ))}
                             </div>
+                        ) : (
+                            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-500 italic">No hay etiquetas creadas.</div>
+                        )}
+                    </div>
+                )}
 
-                            {/* Progress Bar */}
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">Progreso</span>
-                                    <span className="text-slate-400 font-mono">{campaign.sentCount} / {campaign.totalLeads}</span>
-                                </div>
-                                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                                        style={{ width: `${progress}%` }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-3 mt-3">
-                                <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded">
-                                    Lote: {campaign.batchSize}
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded flex items-center gap-1">
-                                    {campaign.useAI ? <><Sparkles className="w-3 h-3 text-purple-400" /> IA</> : <><FileText className="w-3 h-3" /> Fijo / Plantilla</>}
-                                </span>
-                            </div>
+                {/* EXCLUSIONS ARE ALWAYS AVAILABLE */}
+                <div className="space-y-2 pt-2 border-t border-slate-800">
+                    <label className="text-xs font-bold text-red-500/80 uppercase">2. Excluir Etiquetas (Inverso) [Opcional]</label>
+                    {availableTags.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-xl max-h-32 overflow-y-auto">
+                            {availableTags.map(tag => (
+                                <button
+                                    key={tag}
+                                    onClick={() => {
+                                        if (excludeTags.includes(tag)) setExcludeTags(excludeTags.filter(t => t !== tag));
+                                        else setExcludeTags([...excludeTags, tag]);
+                                    }}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${excludeTags.includes(tag) ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'}`}
+                                >
+                                    {tag}
+                                </button>
+                            ))}
                         </div>
-                    );
-                })}
+                    ) : (
+                        <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 italic">No hay etiquetas creadas.</div>
+                    )}
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-slate-800">
+                    <label className="text-xs font-bold text-slate-500 uppercase">3. Tamaño de lote</label>
+                    <input
+                        type="number"
+                        value={batchSize}
+                        onChange={(e) => setBatchSize(parseInt(e.target.value) || 50)}
+                        className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                </div>
             </div>
+
+            <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase">
+                    <Clock className="w-4 h-4" /> Programar Envío (Opcional)
+                </label>
+                <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                />
+                <p className="text-[10px] text-slate-500">Déjalo en blanco para permitir la ejecución manual de la campaña a tu propio ritmo.</p>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+                <input
+                    type="checkbox"
+                    checked={excludeActive}
+                    onChange={(e) => setExcludeActive(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
+                />
+                Excluir leads que ya están en una secuencia activa
+            </label>
+
+            <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowNew(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">
+                    Cancelar
+                </button>
+                <button
+                    onClick={handleCreate}
+                    disabled={saving || !name.trim() || (messageType === "TEMPLATE" ? !selectedTemplate : !message.trim())}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                    <Send className="w-4 h-4" /> {saving ? "Creando..." : "Crear Campaña"}
+                </button>
+            </div>
+        </div>
+    )
+}
+
+{/* Campaign List */ }
+<div className="space-y-4">
+    {campaigns.length === 0 && !showNew && (
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-12 text-center">
+            <Send className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+            <p className="text-slate-500 font-medium">No hay campañas</p>
+            <p className="text-sm text-slate-600 mt-1">Crea tu primera campaña para enviar mensajes masivos.</p>
+        </div>
+    )}
+
+    {campaigns.map((campaign) => {
+        const progress = campaign.totalLeads > 0 ? (campaign.sentCount / campaign.totalLeads) * 100 : 0;
+        const sc = statusConfig[campaign.status] || statusConfig.DRAFT;
+
+        return (
+            <div key={campaign.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg bg-${sc.color}-500/10`}>
+                            {sc.icon}
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-white">{campaign.name}</h3>
+                            <span className={`text-xs font-bold text-${sc.color}-400 uppercase`}>{sc.label}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {campaign.status !== "COMPLETED" && (
+                            <button
+                                onClick={() => handleProcessBatch(campaign.id, campaign.batchSize)}
+                                disabled={sendingBatchId === campaign.id}
+                                className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                                {sendingBatchId === campaign.id ? (
+                                    <><div className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" /> Procesando...</>
+                                ) : (
+                                    <><Play className="w-3 h-3" /> Procesar Lote ({campaign.batchSize})</>
+                                )}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => handleDelete(campaign.id)}
+                            className="px-3 py-1.5 text-xs text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-red-500/10 rounded-lg transition-all border border-slate-700"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">Progreso</span>
+                        <span className="text-slate-400 font-mono">{campaign.sentCount} / {campaign.totalLeads}</span>
+                    </div>
+                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 mt-3">
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded">
+                        Lote: {campaign.batchSize}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded flex items-center gap-1">
+                        {campaign.useAI ? <><Sparkles className="w-3 h-3 text-purple-400" /> IA</> : <><FileText className="w-3 h-3" /> Fijo / Plantilla</>}
+                    </span>
+                </div>
+            </div>
+        );
+    })}
+</div>
         </div >
     );
 }

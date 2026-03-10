@@ -16,6 +16,7 @@ model Organization {
   ghlPipelineId     String?
   ghlStageMap       Json?      // { "NEW": "stageId1", "CONTACTED": "stageId2", ... }
   waPhoneNumberId   String?
+  waBusinessAccountId String?
   waAccessToken     String?
   defaultSequenceId String?
   masterPrompt      String?    @db.Text

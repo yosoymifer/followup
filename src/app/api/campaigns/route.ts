@@ -37,10 +37,18 @@ export async function POST(req: Request) {
         // Count matching leads for totalLeads
         const segmentFilter: any = { organizationId, phone: { not: null } };
         if (segment?.excludeActive) segmentFilter.sequenceActive = false;
-        if (segment?.tags?.length) segmentFilter.tags = { hasSome: segment.tags };
+
+        // Apply targetType logic strictly
+        if (segment?.targetType === 'TAGS' && segment?.tags?.length) {
+            segmentFilter.tags = { hasSome: segment.tags };
+        } else if (segment?.targetType === 'LIST' && segment?.listId) {
+            segmentFilter.lists = { some: { id: segment.listId } };
+        }
+        // If ALL, no extra positive filtering is added
+
+        // Exclusions apply to all modes
         if (segment?.excludeTags?.length) segmentFilter.NOT = { tags: { hasSome: segment.excludeTags } };
         if (segment?.statuses?.length) segmentFilter.status = { in: segment.statuses };
-        if (segment?.listId) segmentFilter.lists = { some: { id: segment.listId } };
 
         const totalLeads = await prisma.lead.count({ where: segmentFilter });
 

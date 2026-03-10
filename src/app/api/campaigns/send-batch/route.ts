@@ -46,10 +46,15 @@ export async function POST(req: Request) {
             whereClause.sequenceActive = false;
         }
 
-        if (segment.tags && segment.tags.length > 0) {
+        // Apply targetType strictly
+        if (segment.targetType === 'TAGS' && segment.tags && segment.tags.length > 0) {
             whereClause.tags = { hasSome: segment.tags };
+        } else if (segment.targetType === 'LIST' && segment.listId) {
+            whereClause.lists = { some: { id: segment.listId } };
         }
+        // If ALL, no positive filters added
 
+        // Exclusions always apply
         if (segment.excludeTags && segment.excludeTags.length > 0) {
             whereClause.NOT = { tags: { hasSome: segment.excludeTags } };
         }

@@ -38,8 +38,8 @@ export async function POST(request: Request) {
 
         await writeFile(path, buffer);
 
-        // We use relative path for local serving
-        const url = `/uploads/${filename}`;
+        // We use the new serve route for better compatibility in standalone builds
+        const url = `/api/media/files/${filename}`;
 
         const media = await prisma.media.create({
             data: {

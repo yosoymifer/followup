@@ -46,37 +46,24 @@ export async function POST(req: Request) {
             if (segment.testLeadIds && segment.testLeadIds.length > 0) {
                 whereClause.id = { in: segment.testLeadIds };
             } else {
-                whereClause.id = { in: [] }; // match nothing
+                whereClause.id = { in: [] };
             }
         } else {
-            if (segment.excludeActive) {
-                whereClause.sequenceActive = false;
-            }
+            if (segment.excludeActive) whereClause.sequenceActive = false;
 
-            // Apply targetType strictly
-            if (segment.targetType === 'TAGS' && segment.tags && segment.tags.length > 0) {
+            if (segment.targetType === 'TAGS' && segment.tags?.length > 0) {
                 whereClause.tags = { hasSome: segment.tags };
             } else if (segment.targetType === 'LIST' && segment.listId) {
                 whereClause.lists = { some: { id: segment.listId } };
             }
-            // If ALL, no positive filters added
 
-            // Exclusions always apply
-            if (segment.excludeTags && segment.excludeTags.length > 0) {
+            if (segment.excludeTags?.length > 0) {
                 whereClause.NOT = { tags: { hasSome: segment.excludeTags } };
             }
-
-            if (segment.statuses && segment.statuses.length > 0) {
-                whereClause.status = { in: segment.statuses };
-            }
-        }
-
-        if (segment.listId) {
-            whereClause.lists = { some: { id: segment.listId } };
         }
 
         const takeSize = batchSizeOverride ? parseInt(batchSizeOverride) : campaign.batchSize;
-        console.log(`[Campaign ${campaign.name}] Buscando leads para batch de tamaño ${takeSize}...`);
+        console.log(`[Batch] Where Clause:`, JSON.stringify(whereClause, null, 2));
 
         const leads = await prisma.lead.findMany({
             where: whereClause,
@@ -84,7 +71,6 @@ export async function POST(req: Request) {
         });
 
         if (leads.length === 0) {
-            // No more leads to process
             if (campaign.status !== 'COMPLETED') {
                 await prisma.campaign.update({
                     where: { id: campaign.id },
@@ -94,6 +80,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, processed: 0, message: 'No more leads to process.' });
         }
 
+        console.log(`[Batch] Found ${leads.length} leads to process.`);
         let successCount = 0;
         let failCount = 0;
 
@@ -129,6 +116,7 @@ export async function POST(req: Request) {
         }
 
         for (const lead of leads) {
+            console.log(`[Batch] Processing lead: ${lead.phone} (${lead.id})`);
             try {
                 let componentsList = [];
 
@@ -142,7 +130,6 @@ export async function POST(req: Request) {
                                     link: (() => {
                                         let url = (campaign.segment as any)?.headerImageUrl || "https://placehold.co/600x400/png";
                                         if (url.startsWith("/")) {
-                                            // Handle relative paths for local uploads
                                             const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:80";
                                             url = `${baseUrl}${url}`;
                                         }
@@ -160,7 +147,7 @@ export async function POST(req: Request) {
                         if (i === 0) {
                             parameters.push({ type: "text", text: lead.firstName || 'amigo' });
                         } else {
-                            parameters.push({ type: "text", text: 'info' }); // fallback for additional variables
+                            parameters.push({ type: "text", text: 'info' });
                         }
                     }
                     componentsList.push({
@@ -174,12 +161,11 @@ export async function POST(req: Request) {
                 const providerMessageId = await sendWhatsAppTemplate(
                     organizationId,
                     lead.phone!,
-                    campaign.message, // Assuming campaign.message holds the template name for Template campaigns
+                    campaign.message,
                     templateLanguage,
                     finalComponents
                 );
 
-                // Create message record linked to this campaign
                 await prisma.message.create({
                     data: {
                         leadId: lead.id,
@@ -192,7 +178,6 @@ export async function POST(req: Request) {
                     } as any
                 });
 
-                // Update lead status
                 await prisma.lead.update({
                     where: { id: lead.id },
                     data: {
@@ -205,7 +190,6 @@ export async function POST(req: Request) {
 
             } catch (error) {
                 console.error(`Error sending template to lead ${lead.id}:`, error);
-
                 await prisma.message.create({
                     data: {
                         leadId: lead.id,
@@ -216,15 +200,11 @@ export async function POST(req: Request) {
                         campaignId: campaign.id
                     } as any
                 });
-
                 failCount++;
             }
-
-            // Rate limiting delay of 1 second between messages
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        // Update campaign progress
         const updatedCampaign = await prisma.campaign.update({
             where: { id: campaign.id },
             data: {
@@ -233,7 +213,6 @@ export async function POST(req: Request) {
             }
         });
 
-        // Check if now complete
         if (updatedCampaign.sentCount >= updatedCampaign.totalLeads) {
             await prisma.campaign.update({
                 where: { id: campaign.id },

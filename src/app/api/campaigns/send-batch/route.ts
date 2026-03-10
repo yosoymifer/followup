@@ -100,13 +100,14 @@ export async function POST(req: Request) {
         // Find template language and parameters count if possible
         let templateLanguage = 'es';
         let paramCount = 0;
+        let requiresImageHeader = false;
 
         const matchedTemplate = await prisma.template.findFirst({
             where: {
                 organizationId,
                 name: campaign.message
             }
-        });
+        }) as any;
 
         if (matchedTemplate) {
             if (matchedTemplate.language) {
@@ -118,11 +119,33 @@ export async function POST(req: Request) {
                     paramCount = new Set(matchParams).size;
                 }
             }
+            if (matchedTemplate.components) {
+                const comps = matchedTemplate.components as any[];
+                const headerComp = comps.find((c: any) => c.type === 'HEADER');
+                if (headerComp && headerComp.format === 'IMAGE') {
+                    requiresImageHeader = true;
+                }
+            }
         }
 
         for (const lead of leads) {
             try {
-                let components = undefined;
+                let componentsList = [];
+
+                if (requiresImageHeader) {
+                    componentsList.push({
+                        type: "header",
+                        parameters: [
+                            {
+                                type: "image",
+                                image: {
+                                    link: (campaign.segment as any)?.headerImageUrl || "https://placehold.co/600x400/png" // user provided image or fallback
+                                }
+                            }
+                        ]
+                    });
+                }
+
                 if (paramCount > 0) {
                     const parameters = [];
                     for (let i = 0; i < paramCount; i++) {
@@ -132,20 +155,20 @@ export async function POST(req: Request) {
                             parameters.push({ type: "text", text: 'info' }); // fallback for additional variables
                         }
                     }
-                    components = [
-                        {
-                            type: "body",
-                            parameters
-                        }
-                    ];
+                    componentsList.push({
+                        type: "body",
+                        parameters
+                    });
                 }
+
+                const finalComponents = componentsList.length > 0 ? componentsList : undefined;
 
                 const providerMessageId = await sendWhatsAppTemplate(
                     organizationId,
                     lead.phone!,
                     campaign.message, // Assuming campaign.message holds the template name for Template campaigns
                     templateLanguage,
-                    components
+                    finalComponents
                 );
 
                 // Create message record linked to this campaign
@@ -156,9 +179,9 @@ export async function POST(req: Request) {
                         direction: 'OUTBOUND',
                         type: 'TEMPLATE',
                         status: 'SENT',
-                        waMessageId: providerMessageId?.messages?.[0]?.id || null,
+                        waMessageId: (providerMessageId as any)?.messages?.[0]?.id || null,
                         campaignId: campaign.id
-                    }
+                    } as any
                 });
 
                 // Update lead status
@@ -183,7 +206,7 @@ export async function POST(req: Request) {
                         type: 'TEMPLATE',
                         status: 'FAILED',
                         campaignId: campaign.id
-                    }
+                    } as any
                 });
 
                 failCount++;

@@ -54,6 +54,7 @@ export async function POST() {
                     organizationId,
                     name: t.name,
                     content: bodyComponent?.text || '(Sin cuerpo de texto)',
+                    components: t.components,
                     language: t.language,
                     category: t.category || "MARKETING",
                     status: 'ACTIVE'

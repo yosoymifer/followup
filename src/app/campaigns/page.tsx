@@ -25,6 +25,7 @@ interface Template {
     name: string;
     content: string;
     language: string;
+    components?: any[];
 }
 
 export default function CampaignsPage() {
@@ -48,10 +49,16 @@ export default function CampaignsPage() {
     const [filterTags, setFilterTags] = useState<string[]>([]);
     const [excludeTags, setExcludeTags] = useState<string[]>([]);
     const [availableTags, setAvailableTags] = useState<string[]>([]);
+    const [headerImageUrl, setHeaderImageUrl] = useState("");
     const [lists, setLists] = useState<any[]>([]);
     const [selectedListId, setSelectedListId] = useState<string>("");
     const [scheduledAt, setScheduledAt] = useState("");
     const [syncingTemplates, setSyncingTemplates] = useState(false);
+
+    // Media Library
+    const [mediaItems, setMediaItems] = useState<any[]>([]);
+    const [showingMedia, setShowingMedia] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
     const fetchCampaigns = async () => {
         try {
@@ -80,6 +87,12 @@ export default function CampaignsPage() {
                 const data = await listsRes.json();
                 setLists(data.lists || []);
             }
+            // Also fetch media
+            const mRes = await fetch("/api/media");
+            if (mRes.ok) {
+                const data = await mRes.json();
+                setMediaItems(data.media || []);
+            }
         } catch (e) {
             console.error("Error fetching data:", e);
         } finally {
@@ -88,6 +101,33 @@ export default function CampaignsPage() {
     };
 
     useEffect(() => { fetchCampaigns(); }, []);
+
+    const fetchMedia = async () => {
+        try {
+            const res = await fetch("/api/media");
+            if (res.ok) {
+                const data = await res.json();
+                setMediaItems(data.media || []);
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append("file", file);
+        try {
+            const res = await fetch("/api/upload", { method: "POST", body: formData });
+            const data = await res.json();
+            if (data.success) {
+                showFb("✅ Subido");
+                setHeaderImageUrl(data.media.url);
+                fetchMedia();
+            } else { showFb("❌ " + data.error); }
+        } catch { showFb("❌ Error"); } finally { setIsUploading(false); }
+    };
 
     const showFb = (msg: string) => {
         setFeedback(msg);
@@ -114,6 +154,9 @@ export default function CampaignsPage() {
             if (excludeTags.length > 0) {
                 segment.excludeTags = excludeTags;
             }
+            if (headerImageUrl) {
+                segment.headerImageUrl = headerImageUrl;
+            }
 
             const res = await fetch("/api/campaigns", {
                 method: "POST",
@@ -138,6 +181,7 @@ export default function CampaignsPage() {
                 setExcludeTags([]);
                 setSelectedListId("");
                 setScheduledAt("");
+                setHeaderImageUrl("");
                 fetchCampaigns();
             } else {
                 showFb("❌ " + data.error);
@@ -324,6 +368,49 @@ export default function CampaignsPage() {
                             {selectedTemplate && templates.find(t => t.name === selectedTemplate) && (
                                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-400 italic">
                                     "{templates.find(t => t.name === selectedTemplate)?.content}"
+                                </div>
+                            )}
+
+                            {selectedTemplate && templates.find(t => t.name === selectedTemplate)?.components?.some((c: any) => c.type === 'HEADER' && c.format === 'IMAGE') && (
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-xs font-bold text-slate-500 uppercase">
+                                            Imagen de Cabecera (Obligatorio)
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => { fetchMedia(); setShowingMedia(true); }}
+                                            className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold uppercase transition-colors"
+                                        >
+                                            Ver Biblioteca
+                                        </button>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <input
+                                            value={headerImageUrl}
+                                            onChange={(e) => setHeaderImageUrl(e.target.value)}
+                                            placeholder="URL de imagen o sube un archivo..."
+                                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                        />
+                                        <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white rounded-xl px-4 flex items-center justify-center transition-colors">
+                                            {isUploading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-5 h-5" />}
+                                            <input type="file" className="hidden" accept="image/*" onChange={handleUpload} disabled={isUploading} />
+                                        </label>
+                                    </div>
+
+                                    {headerImageUrl && (
+                                        <div className="relative group w-32 aspect-video rounded-lg overflow-hidden border border-slate-800">
+                                            <img src={headerImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                            <button
+                                                type="button"
+                                                onClick={() => setHeaderImageUrl("")}
+                                                className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                            >
+                                                <XCircle className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -575,6 +662,63 @@ export default function CampaignsPage() {
                     );
                 })}
             </div>
+            {/* Media Library Modal */}
+            {showingMedia && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                            <div>
+                                <h3 className="font-bold text-white text-lg">Biblioteca de Medios</h3>
+                                <p className="text-xs text-slate-500">Selecciona una imagen previamente subida</p>
+                            </div>
+                            <button
+                                onClick={() => setShowingMedia(false)}
+                                className="p-2 hover:bg-slate-800 rounded-full transition-colors"
+                            >
+                                <XCircle className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {mediaItems.length === 0 && (
+                                <div className="col-span-full py-20 flex flex-col items-center justify-center space-y-3 opacity-50">
+                                    <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center">
+                                        <Plus className="w-8 h-8 text-slate-600" />
+                                    </div>
+                                    <p className="text-sm">No has subido ninguna imagen todavía.</p>
+                                </div>
+                            )}
+
+                            {mediaItems.map((m) => (
+                                <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => { setHeaderImageUrl(m.url); setShowingMedia(false); }}
+                                    className="group relative aspect-video bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-800 hover:border-indigo-500 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+                                >
+                                    <img src={m.url} alt={m.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
+                                        <p className="text-[10px] text-white font-bold truncate">{m.name}</p>
+                                    </div>
+                                    <div className="absolute top-2 right-2 bg-indigo-500 text-white p-1 rounded-full scale-0 group-hover:scale-100 transition-transform duration-200 shadow-lg">
+                                        <CheckCircle className="w-4 h-4" />
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="p-6 border-t border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                            <p className="text-xs text-slate-500">Usa el botón "+" en el formulario para subir más imágenes.</p>
+                            <button
+                                onClick={() => setShowingMedia(false)}
+                                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold rounded-xl transition-all"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

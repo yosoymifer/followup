@@ -26,6 +26,7 @@ model Organization {
   templates         Template[]
   campaigns         Campaign[]
   lists             List[]
+  media             Media[]
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 }
@@ -101,6 +102,7 @@ model Template {
   organization    Organization @relation(fields: [organizationId], references: [id])
   name            String
   content         String
+  components      Json?
   category        String?
   language        String       @default("es")
   status          String       @default("ACTIVE")
@@ -172,6 +174,19 @@ model List {
   leads          Lead[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Media {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  name            String
+  url             String
+  type            String       @default("IMAGE") // IMAGE, VIDEO
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@index([organizationId])
 }

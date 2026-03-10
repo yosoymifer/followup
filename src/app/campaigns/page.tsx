@@ -43,7 +43,8 @@ export default function CampaignsPage() {
     const [selectedTemplate, setSelectedTemplate] = useState("");
     const [batchSize, setBatchSize] = useState(50);
     const [excludeActive, setExcludeActive] = useState(true);
-    const [targetType, setTargetType] = useState<"ALL" | "LIST" | "TAGS">("ALL");
+    const [targetType, setTargetType] = useState<"ALL" | "LIST" | "TAGS" | "TEST_NUMBERS">("ALL");
+    const [testNumbers, setTestNumbers] = useState("");
     const [filterTags, setFilterTags] = useState<string[]>([]);
     const [excludeTags, setExcludeTags] = useState<string[]>([]);
     const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -106,6 +107,9 @@ export default function CampaignsPage() {
             }
             if (targetType === "LIST" && selectedListId) {
                 segment.listId = selectedListId;
+            }
+            if (targetType === "TEST_NUMBERS" && testNumbers.trim().length > 0) {
+                segment.testNumbers = testNumbers.split(',').map(n => n.trim()).filter(Boolean);
             }
             if (excludeTags.length > 0) {
                 segment.excludeTags = excludeTags;
@@ -361,10 +365,30 @@ export default function CampaignsPage() {
                         >
                             Por Etiquetas
                         </button>
+                        <button
+                            onClick={() => setTargetType("TEST_NUMBERS")}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${targetType === "TEST_NUMBERS" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-slate-400 hover:text-slate-300"}`}
+                        >
+                            Para Pruebas (Números)
+                        </button>
                     </div>
                 </div>
 
                 {/* Additional Pickers based on Target Type */}
+                {targetType === "TEST_NUMBERS" && (
+                    <div className="space-y-2 p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Lista de Números de Prueba</label>
+                        <p className="text-[10px] text-slate-500">Separados por coma y con código de país (ej. +573001234567, +14155552671)</p>
+                        <textarea
+                            value={testNumbers}
+                            onChange={(e) => setTestNumbers(e.target.value)}
+                            placeholder="+573001234567, +14155552671"
+                            rows={3}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+                        />
+                    </div>
+                )}
+
                 {targetType === "LIST" && (
                     <div className="space-y-2 p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
                         <label className="text-xs font-bold text-slate-500 uppercase">Selecciona la Lista Mágica</label>

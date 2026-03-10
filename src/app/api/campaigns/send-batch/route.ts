@@ -42,25 +42,33 @@ export async function POST(req: Request) {
             }
         };
 
-        if (segment.excludeActive) {
-            whereClause.sequenceActive = false;
-        }
+        if (segment.targetType === 'TEST_NUMBERS') {
+            if (segment.testLeadIds && segment.testLeadIds.length > 0) {
+                whereClause.id = { in: segment.testLeadIds };
+            } else {
+                whereClause.id = { in: [] }; // match nothing
+            }
+        } else {
+            if (segment.excludeActive) {
+                whereClause.sequenceActive = false;
+            }
 
-        // Apply targetType strictly
-        if (segment.targetType === 'TAGS' && segment.tags && segment.tags.length > 0) {
-            whereClause.tags = { hasSome: segment.tags };
-        } else if (segment.targetType === 'LIST' && segment.listId) {
-            whereClause.lists = { some: { id: segment.listId } };
-        }
-        // If ALL, no positive filters added
+            // Apply targetType strictly
+            if (segment.targetType === 'TAGS' && segment.tags && segment.tags.length > 0) {
+                whereClause.tags = { hasSome: segment.tags };
+            } else if (segment.targetType === 'LIST' && segment.listId) {
+                whereClause.lists = { some: { id: segment.listId } };
+            }
+            // If ALL, no positive filters added
 
-        // Exclusions always apply
-        if (segment.excludeTags && segment.excludeTags.length > 0) {
-            whereClause.NOT = { tags: { hasSome: segment.excludeTags } };
-        }
+            // Exclusions always apply
+            if (segment.excludeTags && segment.excludeTags.length > 0) {
+                whereClause.NOT = { tags: { hasSome: segment.excludeTags } };
+            }
 
-        if (segment.statuses && segment.statuses.length > 0) {
-            whereClause.status = { in: segment.statuses };
+            if (segment.statuses && segment.statuses.length > 0) {
+                whereClause.status = { in: segment.statuses };
+            }
         }
 
         if (segment.listId) {

@@ -34,23 +34,55 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Name and message are required' }, { status: 400 });
         }
 
-        // Count matching leads for totalLeads
-        const segmentFilter: any = { organizationId, phone: { not: null } };
-        if (segment?.excludeActive) segmentFilter.sequenceActive = false;
+        // Pre-process TEST_NUMBERS
+        if (segment?.targetType === 'TEST_NUMBERS' && segment.testNumbers?.length > 0) {
+            const rawNumbers: string[] = segment.testNumbers.map((n: string) => n.replace(/\D/g, '')).filter(Boolean);
+            const uniqueNumbers = [...new Set(rawNumbers)] as string[];
 
-        // Apply targetType logic strictly
-        if (segment?.targetType === 'TAGS' && segment?.tags?.length) {
-            segmentFilter.tags = { hasSome: segment.tags };
-        } else if (segment?.targetType === 'LIST' && segment?.listId) {
-            segmentFilter.lists = { some: { id: segment.listId } };
+            const testLeadIds = [];
+            for (const phone of uniqueNumbers) {
+                let lead = await prisma.lead.findFirst({
+                    where: { organizationId, phone }
+                });
+                if (!lead) {
+                    lead = await prisma.lead.create({
+                        data: {
+                            organizationId,
+                            phone,
+                            firstName: 'Test',
+                            lastName: 'Lead',
+                            tags: ['TEST_LEAD'],
+                        }
+                    });
+                }
+                testLeadIds.push(lead.id);
+            }
+            segment.testLeadIds = testLeadIds;
         }
-        // If ALL, no extra positive filtering is added
 
-        // Exclusions apply to all modes
-        if (segment?.excludeTags?.length) segmentFilter.NOT = { tags: { hasSome: segment.excludeTags } };
-        if (segment?.statuses?.length) segmentFilter.status = { in: segment.statuses };
+        // Count matching leads for totalLeads
+        let totalLeads = 0;
+        const segmentFilter: any = { organizationId, phone: { not: null } };
 
-        const totalLeads = await prisma.lead.count({ where: segmentFilter });
+        if (segment?.targetType === 'TEST_NUMBERS') {
+            totalLeads = segment.testLeadIds?.length || 0;
+        } else {
+            if (segment?.excludeActive) segmentFilter.sequenceActive = false;
+
+            // Apply targetType logic strictly
+            if (segment?.targetType === 'TAGS' && segment?.tags?.length) {
+                segmentFilter.tags = { hasSome: segment.tags };
+            } else if (segment?.targetType === 'LIST' && segment?.listId) {
+                segmentFilter.lists = { some: { id: segment.listId } };
+            }
+            // If ALL, no extra positive filtering is added
+
+            // Exclusions apply to all modes
+            if (segment?.excludeTags?.length) segmentFilter.NOT = { tags: { hasSome: segment.excludeTags } };
+            if (segment?.statuses?.length) segmentFilter.status = { in: segment.statuses };
+
+            totalLeads = await prisma.lead.count({ where: segmentFilter });
+        }
 
         const campaign = await prisma.campaign.create({
             data: {

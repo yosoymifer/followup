@@ -287,7 +287,8 @@ export default function CampaignsPage() {
             </div>
 
             {feedback && (
-                <div className="bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-sm text-slate-300">
+                <div className="fixed bottom-6 right-6 z-[110] bg-slate-900 border border-slate-800 px-6 py-4 rounded-2xl text-sm text-white shadow-2xl animate-in slide-in-from-right-10 duration-300 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
                     {feedback}
                 </div>
             )}

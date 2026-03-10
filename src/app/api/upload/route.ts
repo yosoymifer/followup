@@ -26,9 +26,13 @@ export async function POST(request: Request) {
         const filename = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
         const uploadDir = join(process.cwd(), "public", "uploads");
 
-        // Ensure directory exists
-        const { mkdir } = require("fs/promises");
-        await mkdir(uploadDir, { recursive: true });
+        // Ensure directory exists - wrap in try/catch for Docker permission robustness
+        try {
+            const { mkdir } = require("fs/promises");
+            await mkdir(uploadDir, { recursive: true });
+        } catch (dirError) {
+            console.log("Directory check/create notice:", dirError);
+        }
 
         const path = join(uploadDir, filename);
 

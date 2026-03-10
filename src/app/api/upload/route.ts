@@ -24,9 +24,13 @@ export async function POST(request: Request) {
         const buffer = Buffer.from(bytes);
 
         const filename = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-        // Important: in standalone next.js build, we should ensure the target exists.
-        // process.cwd() is /app usually.
-        const path = join(process.cwd(), "public", "uploads", filename);
+        const uploadDir = join(process.cwd(), "public", "uploads");
+
+        // Ensure directory exists
+        const { mkdir } = require("fs/promises");
+        await mkdir(uploadDir, { recursive: true });
+
+        const path = join(uploadDir, filename);
 
         await writeFile(path, buffer);
 

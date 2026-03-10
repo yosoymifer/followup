@@ -116,17 +116,24 @@ export default function CampaignsPage() {
         const file = e.target.files?.[0];
         if (!file) return;
         setIsUploading(true);
+        showFb("⏳ Subiendo...");
         const formData = new FormData();
         formData.append("file", file);
         try {
             const res = await fetch("/api/upload", { method: "POST", body: formData });
             const data = await res.json();
             if (data.success) {
-                showFb("✅ Subido");
+                showFb("✅ Imagen cargada correctamente");
                 setHeaderImageUrl(data.media.url);
                 fetchMedia();
-            } else { showFb("❌ " + data.error); }
-        } catch { showFb("❌ Error"); } finally { setIsUploading(false); }
+            } else {
+                showFb("❌ Error: " + data.error);
+                console.error("Upload error details:", data.error);
+            }
+        } catch (err) {
+            showFb("❌ Error de red al subir");
+            console.error("Upload network error:", err);
+        } finally { setIsUploading(false); }
     };
 
     const showFb = (msg: string) => {
@@ -400,12 +407,15 @@ export default function CampaignsPage() {
                                     </div>
 
                                     {headerImageUrl && (
-                                        <div className="relative group w-32 aspect-video rounded-lg overflow-hidden border border-slate-800">
+                                        <div className="relative group w-full max-w-sm aspect-video rounded-2xl overflow-hidden border-2 border-indigo-500/50 shadow-xl shadow-indigo-500/10">
                                             <img src={headerImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-3">
+                                                <p className="text-[10px] text-white font-bold uppercase tracking-widest">Vista previa de cabecera</p>
+                                            </div>
                                             <button
                                                 type="button"
                                                 onClick={() => setHeaderImageUrl("")}
-                                                className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                                className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-all shadow-lg"
                                             >
                                                 <XCircle className="w-4 h-4" />
                                             </button>

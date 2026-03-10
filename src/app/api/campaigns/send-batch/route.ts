@@ -139,7 +139,15 @@ export async function POST(req: Request) {
                             {
                                 type: "image",
                                 image: {
-                                    link: (campaign.segment as any)?.headerImageUrl || "https://placehold.co/600x400/png" // user provided image or fallback
+                                    link: (() => {
+                                        let url = (campaign.segment as any)?.headerImageUrl || "https://placehold.co/600x400/png";
+                                        if (url.startsWith("/")) {
+                                            // Handle relative paths for local uploads
+                                            const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:80";
+                                            url = `${baseUrl}${url}`;
+                                        }
+                                        return url;
+                                    })()
                                 }
                             }
                         ]

@@ -97,6 +97,18 @@ export async function POST(req: Request) {
         let successCount = 0;
         let failCount = 0;
 
+        // Find template language if possible
+        let templateLanguage = 'es';
+        const matchedTemplate = await prisma.template.findFirst({
+            where: {
+                organizationId,
+                name: campaign.message
+            }
+        });
+        if (matchedTemplate && matchedTemplate.language) {
+            templateLanguage = matchedTemplate.language;
+        }
+
         for (const lead of leads) {
             try {
                 const components = [
@@ -112,7 +124,7 @@ export async function POST(req: Request) {
                     organizationId,
                     lead.phone!,
                     campaign.message, // Assuming campaign.message holds the template name for Template campaigns
-                    'es',
+                    templateLanguage,
                     components
                 );
 

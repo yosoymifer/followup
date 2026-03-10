@@ -12,6 +12,7 @@ async function main() {
             ghlLocationId: process.env.GHL_LOCATION_ID || null,
             waPhoneNumberId: process.env.WA_PHONE_NUMBER_ID || null,
             waAccessToken: process.env.WA_ACCESS_TOKEN || null,
+            waBusinessAccountId: process.env.WA_BUSINESS_ACCOUNT_ID || null,
         },
         create: {
             id: 'pascual_prod',
@@ -20,6 +21,7 @@ async function main() {
             ghlLocationId: process.env.GHL_LOCATION_ID || null,
             waPhoneNumberId: process.env.WA_PHONE_NUMBER_ID || null,
             waAccessToken: process.env.WA_ACCESS_TOKEN || null,
+            waBusinessAccountId: process.env.WA_BUSINESS_ACCOUNT_ID || null,
         },
     });
 

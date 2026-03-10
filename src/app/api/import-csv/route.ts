@@ -62,7 +62,22 @@ export async function POST(request: NextRequest) {
         const errors: string[] = [];
 
         for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(separator).map(v => v.trim().replace(/^['"]|['"]$/g, ''));
+            const line = lines[i];
+            const values: string[] = [];
+            let inQuotes = false;
+            let currentValue = '';
+            for (let char of line) {
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === separator && !inQuotes) {
+                    values.push(currentValue.trim().replace(/^['"]|['"]$/g, ''));
+                    currentValue = '';
+                } else {
+                    currentValue += char;
+                }
+            }
+            values.push(currentValue.trim().replace(/^['"]|['"]$/g, ''));
+
             const row: Record<string, string> = {};
             headers.forEach((h, idx) => {
                 row[h] = values[idx] || '';

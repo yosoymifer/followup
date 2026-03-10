@@ -43,14 +43,16 @@ export default function CampaignsPage() {
     const [selectedTemplate, setSelectedTemplate] = useState("");
     const [batchSize, setBatchSize] = useState(50);
     const [excludeActive, setExcludeActive] = useState(true);
-    const [filterTags, setFilterTags] = useState("");
+    const [filterTags, setFilterTags] = useState<string[]>([]);
+    const [availableTags, setAvailableTags] = useState<string[]>([]);
     const [scheduledAt, setScheduledAt] = useState("");
 
     const fetchCampaigns = async () => {
         try {
-            const [cRes, tRes] = await Promise.all([
+            const [cRes, tRes, tagsRes] = await Promise.all([
                 fetch("/api/campaigns"),
-                fetch("/api/templates")
+                fetch("/api/templates"),
+                fetch("/api/tags")
             ]);
             if (cRes.ok) {
                 const data = await cRes.json();
@@ -62,6 +64,10 @@ export default function CampaignsPage() {
                 if (data.templates?.length > 0) {
                     setSelectedTemplate(data.templates[0].name);
                 }
+            }
+            if (tagsRes.ok) {
+                const data = await tagsRes.json();
+                setAvailableTags(data.tags || []);
             }
         } catch (e) {
             console.error("Error fetching data:", e);
@@ -84,8 +90,8 @@ export default function CampaignsPage() {
         setSaving(true);
         try {
             const segment: any = { excludeActive };
-            if (filterTags.trim()) {
-                segment.tags = filterTags.split(",").map((t: string) => t.trim()).filter(Boolean);
+            if (filterTags.length > 0) {
+                segment.tags = filterTags;
             }
 
             const res = await fetch("/api/campaigns", {
@@ -107,6 +113,7 @@ export default function CampaignsPage() {
                 setShowNew(false);
                 setName("");
                 setMessage("");
+                setFilterTags([]);
                 setScheduledAt("");
                 fetchCampaigns();
             } else {
@@ -293,13 +300,33 @@ export default function CampaignsPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Filtrar por tags (separar con coma)</label>
-                            <input
-                                value={filterTags}
-                                onChange={(e) => setFilterTags(e.target.value)}
-                                placeholder="SEO, Marketing"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
+                            <label className="text-xs font-bold text-slate-500 uppercase">Filtrar por Etiquetas</label>
+                            {availableTags.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-xl max-h-32 overflow-y-auto">
+                                    {availableTags.map(tag => (
+                                        <button
+                                            key={tag}
+                                            onClick={() => {
+                                                if (filterTags.includes(tag)) {
+                                                    setFilterTags(filterTags.filter(t => t !== tag));
+                                                } else {
+                                                    setFilterTags([...filterTags, tag]);
+                                                }
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${filterTags.includes(tag)
+                                                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                                                }`}
+                                        >
+                                            {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 italic">
+                                    No hay etiquetas creadas en tus leads.
+                                </div>
+                            )}
                         </div>
                     </div>
 

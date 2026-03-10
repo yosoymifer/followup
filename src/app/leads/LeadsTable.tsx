@@ -160,7 +160,9 @@ export default function LeadsTable({ initialLeads, totalLeads }: LeadsTableProps
                                             <span className="font-mono">{lead._count?.messages || 0}</span>
                                         </div>
                                     </td>
-                                    <LeadActions leadId={lead.id} leadName={`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Desconocido'} />
+                                    <td className="px-6 py-4">
+                                        <LeadActions leadId={lead.id} leadName={`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Desconocido'} />
+                                    </td>
                                 </tr>
                             )) : (
                                 <tr>

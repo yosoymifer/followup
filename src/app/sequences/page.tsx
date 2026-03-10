@@ -24,8 +24,16 @@ interface Sequence {
     _count?: { leads: number };
 }
 
+interface Template {
+    id: string;
+    name: string;
+    content: string;
+    language: string;
+}
+
 export default function SequencesPage() {
     const [sequences, setSequences] = useState<Sequence[]>([]);
+    const [templates, setTemplates] = useState<Template[]>([]);
     const [defaultSequenceId, setDefaultSequenceId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState<string | null>(null);
@@ -47,12 +55,22 @@ export default function SequencesPage() {
 
     const fetchSequences = async () => {
         try {
-            const res = await fetch("/api/sequences");
-            const data = await res.json();
-            setSequences(data.sequences || []);
-            setDefaultSequenceId(data.defaultSequenceId);
+            const [sRes, tRes] = await Promise.all([
+                fetch("/api/sequences"),
+                fetch("/api/templates")
+            ]);
+
+            if (sRes.ok) {
+                const data = await sRes.json();
+                setSequences(data.sequences || []);
+                setDefaultSequenceId(data.defaultSequenceId);
+            }
+            if (tRes.ok) {
+                const data = await tRes.json();
+                setTemplates(data.templates || []);
+            }
         } catch (e) {
-            console.error("Error fetching sequences:", e);
+            console.error("Error fetching data:", e);
         } finally {
             setLoading(false);
         }
@@ -215,45 +233,80 @@ export default function SequencesPage() {
                         </div>
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => updateStep(steps, i, "isTemplate", !step.isTemplate, setter)}
+                                onClick={() => {
+                                    updateStep(steps, i, "isTemplate", !step.isTemplate, setter);
+                                    if (!step.isTemplate && templates.length > 0 && !step.messageTemplate) {
+                                        updateStep(steps, i, "messageTemplate", templates[0].name, setter);
+                                    }
+                                    if (!step.isTemplate) {
+                                        updateStep(steps, i, "useAI", false, setter); // disable AI if template is forced
+                                    }
+                                }}
                                 className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all border ${step.isTemplate
-                                    ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
-                                    : "bg-slate-800 text-slate-400 border-slate-700"
+                                    ? "bg-amber-500/10 text-amber-500 border-amber-500/30 shadow-lg shadow-amber-500/20"
+                                    : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
                                     }`}
                                 title="Forzar uso de Plantilla Meta (obligatorio después de 24h)"
                             >
-                                <Star className="w-3 h-3" /> {step.isTemplate ? "Plantilla" : "Texto Libre"}
+                                <Star className="w-3 h-3" /> {step.isTemplate ? "Plantilla Meta" : "Texto Libre"}
                             </button>
-                            <button
-                                onClick={() => updateStep(steps, i, "useAI", !step.useAI, setter)}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all border ${step.useAI
-                                    ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
-                                    : "bg-slate-800 text-slate-400 border-slate-700"
-                                    }`}
-                            >
-                                {step.useAI ? <Sparkles className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                                {step.useAI ? "IA" : "Fijo"}
-                            </button>
+                            {!step.isTemplate && (
+                                <button
+                                    onClick={() => updateStep(steps, i, "useAI", !step.useAI, setter)}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all border ${step.useAI
+                                        ? "bg-purple-500/10 text-purple-400 border-purple-500/30 shadow-lg shadow-purple-500/20"
+                                        : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
+                                        }`}
+                                >
+                                    {step.useAI ? <Sparkles className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                                    {step.useAI ? "IA" : "Fijo"}
+                                </button>
+                            )}
                             {steps.length > 1 && (
                                 <button
                                     onClick={() => removeStep(steps, i, setter)}
-                                    className="p-1.5 hover:bg-red-500/10 rounded-lg text-slate-600 hover:text-red-400 transition-all"
+                                    className="p-1.5 hover:bg-red-500/10 rounded-lg text-slate-600 hover:text-red-400 transition-all border border-transparent hover:border-red-500/20"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                             )}
                         </div>
                     </div>
-                    <textarea
-                        value={step.messageTemplate}
-                        onChange={(e) => updateStep(steps, i, "messageTemplate", e.target.value, setter)}
-                        placeholder={step.useAI
-                            ? "Prompt para la IA: ej. 'Genera un mensaje amigable de seguimiento mencionando que no hemos sabido de ellos...'"
-                            : "Mensaje de texto fijo. Usa {{firstName}}, {{lastName}}, {{phone}} como variables."
-                        }
-                        rows={3}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
-                    />
+
+                    {step.isTemplate ? (
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col gap-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Selecciona plantilla aprobada</label>
+                            {templates.length > 0 ? (
+                                <select
+                                    value={step.messageTemplate}
+                                    onChange={(e) => updateStep(steps, i, "messageTemplate", e.target.value, setter)}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                                >
+                                    {templates.map(t => (
+                                        <option key={t.id} value={t.name}>{t.name} ({t.language})</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <div className="text-xs text-amber-500">No hay plantillas registradas.</div>
+                            )}
+                            {step.messageTemplate && templates.find(t => t.name === step.messageTemplate) && (
+                                <div className="mt-1 text-xs text-slate-400 italic px-1">
+                                    "{templates.find(t => t.name === step.messageTemplate)?.content}"
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <textarea
+                            value={step.messageTemplate}
+                            onChange={(e) => updateStep(steps, i, "messageTemplate", e.target.value, setter)}
+                            placeholder={step.useAI
+                                ? "Prompt para la IA: ej. 'Genera un mensaje amigable de seguimiento mencionando que no hemos sabido de ellos...'"
+                                : "Mensaje de texto fijo. Usa {{firstName}}, {{lastName}}, {{phone}} como variables."
+                            }
+                            rows={3}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                        />
+                    )}
                 </div>
             ))}
             <button

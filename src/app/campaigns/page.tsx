@@ -20,8 +20,16 @@ interface Campaign {
     createdAt: string;
 }
 
+interface Template {
+    id: string;
+    name: string;
+    content: string;
+    language: string;
+}
+
 export default function CampaignsPage() {
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [templates, setTemplates] = useState<Template[]>([]);
     const [loading, setLoading] = useState(true);
     const [showNew, setShowNew] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -30,8 +38,9 @@ export default function CampaignsPage() {
 
     // New campaign form
     const [name, setName] = useState("");
+    const [messageType, setMessageType] = useState<"FIXED" | "AI" | "TEMPLATE">("FIXED");
     const [message, setMessage] = useState("");
-    const [useAI, setUseAI] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState("");
     const [batchSize, setBatchSize] = useState(50);
     const [excludeActive, setExcludeActive] = useState(true);
     const [filterTags, setFilterTags] = useState("");
@@ -39,13 +48,23 @@ export default function CampaignsPage() {
 
     const fetchCampaigns = async () => {
         try {
-            const res = await fetch("/api/campaigns");
-            if (res.ok) {
-                const data = await res.json();
+            const [cRes, tRes] = await Promise.all([
+                fetch("/api/campaigns"),
+                fetch("/api/templates")
+            ]);
+            if (cRes.ok) {
+                const data = await cRes.json();
                 setCampaigns(data.campaigns || []);
             }
+            if (tRes.ok) {
+                const data = await tRes.json();
+                setTemplates(data.templates || []);
+                if (data.templates?.length > 0) {
+                    setSelectedTemplate(data.templates[0].name);
+                }
+            }
         } catch (e) {
-            console.error("Error fetching campaigns:", e);
+            console.error("Error fetching data:", e);
         } finally {
             setLoading(false);
         }
@@ -59,7 +78,9 @@ export default function CampaignsPage() {
     };
 
     const handleCreate = async () => {
-        if (!name.trim() || !message.trim()) return;
+        const finalMessage = messageType === "TEMPLATE" ? selectedTemplate : message;
+        if (!name.trim() || !finalMessage.trim()) return;
+
         setSaving(true);
         try {
             const segment: any = { excludeActive };
@@ -70,7 +91,15 @@ export default function CampaignsPage() {
             const res = await fetch("/api/campaigns", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, message, useAI, batchSize, segment, scheduledAt: scheduledAt || null }),
+                body: JSON.stringify({
+                    name,
+                    message: finalMessage,
+                    useAI: messageType === "AI",
+                    batchSize,
+                    segment,
+                    scheduledAt: scheduledAt || null,
+                    isTemplate: messageType === "TEMPLATE"
+                }),
             });
             const data = await res.json();
             if (data.success) {
@@ -186,29 +215,72 @@ export default function CampaignsPage() {
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                     />
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 bg-slate-950 p-2 rounded-xl border border-slate-800">
                         <button
-                            onClick={() => setUseAI(!useAI)}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${useAI
-                                ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
-                                : "bg-slate-800 text-slate-400 border-slate-700"
+                            onClick={() => setMessageType("FIXED")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${messageType === "FIXED"
+                                ? "bg-indigo-500 text-white"
+                                : "text-slate-400 hover:text-slate-300"
                                 }`}
                         >
-                            {useAI ? <Sparkles className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                            {useAI ? "Mensaje con IA" : "Mensaje fijo"}
+                            <FileText className="w-4 h-4" /> Texto Fijo
+                        </button>
+                        <button
+                            onClick={() => setMessageType("TEMPLATE")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${messageType === "TEMPLATE"
+                                ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20"
+                                : "text-slate-400 hover:text-slate-300"
+                                }`}
+                        >
+                            <Sparkles className="w-4 h-4" /> Plantilla Meta
+                        </button>
+                        <button
+                            onClick={() => setMessageType("AI")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${messageType === "AI"
+                                ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
+                                : "text-slate-400 hover:text-slate-300"
+                                }`}
+                        >
+                            <Sparkles className="w-4 h-4" /> IA
                         </button>
                     </div>
 
-                    <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder={useAI
-                            ? "Prompt para la IA: ej. 'Genera un mensaje promocional sobre nuestro descuento del 20% en servicios de SEO...'"
-                            : "Mensaje de texto. Usa {{firstName}} y {{lastName}} como variables."
-                        }
-                        rows={4}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none"
-                    />
+                    {messageType === "TEMPLATE" ? (
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Selecciona una Plantilla Aprobada</label>
+                            {templates.length > 0 ? (
+                                <select
+                                    value={selectedTemplate}
+                                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                                >
+                                    {templates.map(t => (
+                                        <option key={t.id} value={t.name}>{t.name} ({t.language})</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-sm">
+                                    No tienes plantillas registradas. Se usarán de prueba internamente.
+                                </div>
+                            )}
+                            {selectedTemplate && templates.find(t => t.name === selectedTemplate) && (
+                                <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-400 italic">
+                                    "{templates.find(t => t.name === selectedTemplate)?.content}"
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <textarea
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder={messageType === "AI"
+                                ? "Prompt para la IA: ej. 'Genera un mensaje promocional sobre nuestro descuento del 20% en servicios de SEO...'"
+                                : "Mensaje de texto. Usa {{firstName}} y {{lastName}} como variables."
+                            }
+                            rows={4}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none"
+                        />
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -260,7 +332,7 @@ export default function CampaignsPage() {
                         </button>
                         <button
                             onClick={handleCreate}
-                            disabled={saving || !name.trim() || !message.trim()}
+                            disabled={saving || !name.trim() || (messageType === "TEMPLATE" ? !selectedTemplate : !message.trim())}
                             className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
                         >
                             <Send className="w-4 h-4" /> {saving ? "Creando..." : "Crear Campaña"}
@@ -332,13 +404,12 @@ export default function CampaignsPage() {
                                 </div>
                             </div>
 
-                            {/* Info chips */}
                             <div className="flex items-center gap-3 mt-3">
                                 <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded">
                                     Lote: {campaign.batchSize}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded flex items-center gap-1">
-                                    {campaign.useAI ? <><Sparkles className="w-3 h-3 text-purple-400" /> IA</> : <><FileText className="w-3 h-3" /> Texto fijo</>}
+                                    {campaign.useAI ? <><Sparkles className="w-3 h-3 text-purple-400" /> IA</> : <><FileText className="w-3 h-3" /> Fijo / Plantilla</>}
                                 </span>
                             </div>
                         </div>

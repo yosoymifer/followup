@@ -97,28 +97,48 @@ export async function POST(req: Request) {
         let successCount = 0;
         let failCount = 0;
 
-        // Find template language if possible
+        // Find template language and parameters count if possible
         let templateLanguage = 'es';
+        let paramCount = 0;
+
         const matchedTemplate = await prisma.template.findFirst({
             where: {
                 organizationId,
                 name: campaign.message
             }
         });
-        if (matchedTemplate && matchedTemplate.language) {
-            templateLanguage = matchedTemplate.language;
+
+        if (matchedTemplate) {
+            if (matchedTemplate.language) {
+                templateLanguage = matchedTemplate.language;
+            }
+            if (matchedTemplate.content) {
+                const matchParams = matchedTemplate.content.match(/\{\{\d+\}\}/g);
+                if (matchParams) {
+                    paramCount = new Set(matchParams).size;
+                }
+            }
         }
 
         for (const lead of leads) {
             try {
-                const components = [
-                    {
-                        type: "body",
-                        parameters: [
-                            { type: "text", text: lead.firstName || 'amigo' }
-                        ]
+                let components = undefined;
+                if (paramCount > 0) {
+                    const parameters = [];
+                    for (let i = 0; i < paramCount; i++) {
+                        if (i === 0) {
+                            parameters.push({ type: "text", text: lead.firstName || 'amigo' });
+                        } else {
+                            parameters.push({ type: "text", text: 'info' }); // fallback for additional variables
+                        }
                     }
-                ];
+                    components = [
+                        {
+                            type: "body",
+                            parameters
+                        }
+                    ];
+                }
 
                 const providerMessageId = await sendWhatsAppTemplate(
                     organizationId,

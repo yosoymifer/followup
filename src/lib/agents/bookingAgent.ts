@@ -96,7 +96,7 @@ HERRAMIENTAS DISPONIBLES:
     const aiMessage = response.choices[0].message;
 
     if (aiMessage.tool_calls) {
-        for (const toolCall of aiMessage.tool_calls as ChatCompletionMessageToolCall[]) {
+        for (const toolCall of aiMessage.tool_calls as any[]) {
             const args = JSON.parse(toolCall.function.arguments);
 
             if (toolCall.function.name === 'check_availability') {

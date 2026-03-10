@@ -16,7 +16,20 @@ export async function GET() {
             orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json({ success: true, media });
+        // Self-healing check for old URLs
+        const updatedMedia = await Promise.all(media.map(async (m) => {
+            if (m.url.startsWith('/uploads/')) {
+                const newUrl = `/api/media/files/${m.url.split('/').pop()}`;
+                await prisma.media.update({
+                    where: { id: m.id },
+                    data: { url: newUrl }
+                });
+                return { ...m, url: newUrl };
+            }
+            return m;
+        }));
+
+        return NextResponse.json({ success: true, media: updatedMedia });
     } catch (error) {
         console.error("Fetch media error:", error);
         return NextResponse.json({ error: "Error fetching media" }, { status: 500 });

@@ -63,6 +63,7 @@ export async function POST(req: Request) {
         }
 
         const takeSize = batchSizeOverride ? parseInt(batchSizeOverride) : campaign.batchSize;
+        console.log(`[Batch] Campaign: ${campaign.name} (${campaign.id})`);
         console.log(`[Batch] Where Clause:`, JSON.stringify(whereClause, null, 2));
 
         const leads = await prisma.lead.findMany({
@@ -90,28 +91,18 @@ export async function POST(req: Request) {
         let requiresImageHeader = false;
 
         const matchedTemplate = await prisma.template.findFirst({
-            where: {
-                organizationId,
-                name: campaign.message
-            }
+            where: { organizationId, name: campaign.message }
         }) as any;
 
         if (matchedTemplate) {
-            if (matchedTemplate.language) {
-                templateLanguage = matchedTemplate.language;
-            }
+            if (matchedTemplate.language) templateLanguage = matchedTemplate.language;
             if (matchedTemplate.content) {
                 const matchParams = matchedTemplate.content.match(/\{\{\d+\}\}/g);
-                if (matchParams) {
-                    paramCount = new Set(matchParams).size;
-                }
+                if (matchParams) paramCount = new Set(matchParams).size;
             }
             if (matchedTemplate.components) {
-                const comps = matchedTemplate.components as any[];
-                const headerComp = comps.find((c: any) => c.type === 'HEADER');
-                if (headerComp && headerComp.format === 'IMAGE') {
-                    requiresImageHeader = true;
-                }
+                const headerComp = (matchedTemplate.components as any[]).find((c: any) => c.type === 'HEADER');
+                if (headerComp && headerComp.format === 'IMAGE') requiresImageHeader = true;
             }
         }
 
@@ -144,27 +135,24 @@ export async function POST(req: Request) {
                 if (paramCount > 0) {
                     const parameters = [];
                     for (let i = 0; i < paramCount; i++) {
-                        if (i === 0) {
-                            parameters.push({ type: "text", text: lead.firstName || 'amigo' });
-                        } else {
-                            parameters.push({ type: "text", text: 'info' });
-                        }
+                        if (i === 0) parameters.push({ type: "text", text: lead.firstName || 'amigo' });
+                        else parameters.push({ type: "text", text: 'info' });
                     }
-                    componentsList.push({
-                        type: "body",
-                        parameters
-                    });
+                    componentsList.push({ type: "body", parameters });
                 }
 
                 const finalComponents = componentsList.length > 0 ? componentsList : undefined;
+                console.log(`[Batch] Sending template to ${lead.phone}...`);
 
-                const providerMessageId = await sendWhatsAppTemplate(
+                const providerResponse = await sendWhatsAppTemplate(
                     organizationId,
                     lead.phone!,
                     campaign.message,
                     templateLanguage,
                     finalComponents
                 );
+
+                console.log(`[Batch] Meta Response:`, JSON.stringify(providerResponse, null, 2));
 
                 await prisma.message.create({
                     data: {
@@ -173,7 +161,7 @@ export async function POST(req: Request) {
                         direction: 'OUTBOUND',
                         type: 'TEMPLATE',
                         status: 'SENT',
-                        waMessageId: (providerMessageId as any)?.messages?.[0]?.id || null,
+                        waMessageId: (providerResponse as any)?.messages?.[0]?.id || null,
                         campaignId: campaign.id
                     } as any
                 });
@@ -188,8 +176,8 @@ export async function POST(req: Request) {
 
                 successCount++;
 
-            } catch (error) {
-                console.error(`Error sending template to lead ${lead.id}:`, error);
+            } catch (error: any) {
+                console.error(`[Batch] Error sending to ${lead.id}:`, error.message || error);
                 await prisma.message.create({
                     data: {
                         leadId: lead.id,
@@ -202,7 +190,7 @@ export async function POST(req: Request) {
                 });
                 failCount++;
             }
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         const updatedCampaign = await prisma.campaign.update({
@@ -229,7 +217,7 @@ export async function POST(req: Request) {
         });
 
     } catch (error: any) {
-        console.error('Error processing batch:', error);
+        console.error('[Batch] Fatal Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

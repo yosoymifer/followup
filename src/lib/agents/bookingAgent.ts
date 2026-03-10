@@ -5,7 +5,7 @@ import OpenAI from 'openai';
 import { ChatCompletionMessageToolCall } from 'openai/resources/chat/completions';
 
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.OPENAI_API_KEY || 'dummy_key_for_build',
 });
 
 export async function processLeadResponse(leadId: string, incomingMessage: string) {

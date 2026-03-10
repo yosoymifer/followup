@@ -5,7 +5,7 @@ const GHL_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6ImNxeE
 const LOCATION_ID = "cqxFPznq5HKPGBzOwRvC";
 
 // Diagnostic function
-async function testGHL(token, version, includeLocationId) {
+async function testGHL(token: any, version: any, includeLocationId: any) {
     console.log(`Testing with Token: ${token.slice(0, 10)}..., Version: ${version}, LocationId: ${includeLocationId}`);
     try {
         const response = await axios.get(
@@ -20,7 +20,7 @@ async function testGHL(token, version, includeLocationId) {
         );
         console.log(`✅ Success! Found ${response.data.pipelines?.length} pipelines.`);
         return true;
-    } catch (error) {
+    } catch (error: any) {
         console.log(`❌ Error: ${error.response?.status} - ${JSON.stringify(error.response?.data)}`);
         return false;
     }

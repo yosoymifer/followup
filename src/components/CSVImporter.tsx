@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ListPlus } from 'lucide-react';
 
 interface ImportResult {
     success: boolean;
@@ -17,7 +17,48 @@ export default function CSVImporter() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<ImportResult | null>(null);
     const [importTags, setImportTags] = useState("");
+    const [lists, setLists] = useState<any[]>([]);
+    const [selectedListId, setSelectedListId] = useState("");
+    const [newListName, setNewListName] = useState("");
+    const [creatingList, setCreatingList] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    React.useEffect(() => {
+        const fetchLists = async () => {
+            try {
+                const res = await fetch('/api/lists');
+                if (res.ok) {
+                    const data = await res.json();
+                    setLists(data.lists || []);
+                }
+            } catch (e) {
+                console.error("Failed to fetch lists", e);
+            }
+        };
+        fetchLists();
+    }, []);
+
+    const handleCreateList = async () => {
+        if (!newListName.trim()) return;
+        setCreatingList(true);
+        try {
+            const res = await fetch('/api/lists', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newListName.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setLists(prev => [data.list, ...prev]);
+                setSelectedListId(data.list.id);
+                setNewListName("");
+            }
+        } catch (e) {
+            console.error("Error creating list", e);
+        } finally {
+            setCreatingList(false);
+        }
+    };
 
     const handleFile = async (file: File) => {
         if (!file.name.match(/\.(csv|txt)$/i)) {
@@ -32,6 +73,7 @@ export default function CSVImporter() {
             const formData = new FormData();
             formData.append('file', file);
             if (importTags.trim()) formData.append('tags', importTags.trim());
+            if (selectedListId && selectedListId !== 'NEW') formData.append('listId', selectedListId);
 
             const response = await fetch('/api/import-csv', {
                 method: 'POST',
@@ -71,8 +113,45 @@ export default function CSVImporter() {
                     value={importTags}
                     onChange={(e) => setImportTags(e.target.value)}
                     placeholder="Ejemplo: lanzamiento_marzo, referidos"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300 placeholder:text-slate-600"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300 placeholder:text-slate-600 mb-4"
                 />
+
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Lista de Destino (Opcional)
+                </label>
+                <div className="flex gap-2 items-start">
+                    <select
+                        value={selectedListId}
+                        onChange={(e) => setSelectedListId(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300"
+                    >
+                        <option value="">Sin Lista</option>
+                        {lists.map(list => (
+                            <option key={list.id} value={list.id}>{list.name}</option>
+                        ))}
+                        <option value="NEW">+ Crear nueva lista</option>
+                    </select>
+
+                    {selectedListId === 'NEW' && (
+                        <div className="flex flex-1 gap-2">
+                            <input
+                                autoFocus
+                                type="text"
+                                value={newListName}
+                                onChange={(e) => setNewListName(e.target.value)}
+                                placeholder="Nombre de lista..."
+                                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300"
+                            />
+                            <button
+                                onClick={handleCreateList}
+                                disabled={creatingList || !newListName.trim()}
+                                className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white p-2 rounded-xl flex items-center justify-center transition-all"
+                            >
+                                <ListPlus className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Drop Zone */}

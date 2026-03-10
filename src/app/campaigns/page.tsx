@@ -44,15 +44,19 @@ export default function CampaignsPage() {
     const [batchSize, setBatchSize] = useState(50);
     const [excludeActive, setExcludeActive] = useState(true);
     const [filterTags, setFilterTags] = useState<string[]>([]);
+    const [excludeTags, setExcludeTags] = useState<string[]>([]);
     const [availableTags, setAvailableTags] = useState<string[]>([]);
+    const [lists, setLists] = useState<any[]>([]);
+    const [selectedListId, setSelectedListId] = useState<string>("");
     const [scheduledAt, setScheduledAt] = useState("");
 
     const fetchCampaigns = async () => {
         try {
-            const [cRes, tRes, tagsRes] = await Promise.all([
+            const [cRes, tRes, tagsRes, listsRes] = await Promise.all([
                 fetch("/api/campaigns"),
                 fetch("/api/templates"),
-                fetch("/api/tags")
+                fetch("/api/tags"),
+                fetch("/api/lists")
             ]);
             if (cRes.ok) {
                 const data = await cRes.json();
@@ -68,6 +72,10 @@ export default function CampaignsPage() {
             if (tagsRes.ok) {
                 const data = await tagsRes.json();
                 setAvailableTags(data.tags || []);
+            }
+            if (listsRes.ok) {
+                const data = await listsRes.json();
+                setLists(data.lists || []);
             }
         } catch (e) {
             console.error("Error fetching data:", e);
@@ -93,6 +101,12 @@ export default function CampaignsPage() {
             if (filterTags.length > 0) {
                 segment.tags = filterTags;
             }
+            if (excludeTags.length > 0) {
+                segment.excludeTags = excludeTags;
+            }
+            if (selectedListId) {
+                segment.listId = selectedListId;
+            }
 
             const res = await fetch("/api/campaigns", {
                 method: "POST",
@@ -114,6 +128,8 @@ export default function CampaignsPage() {
                 setName("");
                 setMessage("");
                 setFilterTags([]);
+                setExcludeTags([]);
+                setSelectedListId("");
                 setScheduledAt("");
                 fetchCampaigns();
             } else {
@@ -291,16 +307,20 @@ export default function CampaignsPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Tamaño de lote</label>
-                            <input
-                                type="number"
-                                value={batchSize}
-                                onChange={(e) => setBatchSize(parseInt(e.target.value) || 50)}
+                            <label className="text-xs font-bold text-slate-500 uppercase">Lista de Destino</label>
+                            <select
+                                value={selectedListId}
+                                onChange={(e) => setSelectedListId(e.target.value)}
                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
+                            >
+                                <option value="">Todas las Listas</option>
+                                {lists.map(list => (
+                                    <option key={list.id} value={list.id}>{list.name} ({list._count?.leads || 0} leads)</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Filtrar por Etiquetas</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase">Incluir Etiquetas</label>
                             {availableTags.length > 0 ? (
                                 <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-xl max-h-32 overflow-y-auto">
                                     {availableTags.map(tag => (
@@ -327,6 +347,44 @@ export default function CampaignsPage() {
                                     No hay etiquetas creadas en tus leads.
                                 </div>
                             )}
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-red-500/80 uppercase">Excluir Etiquetas (Inverso)</label>
+                            {availableTags.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 p-3 bg-slate-950 border border-slate-800 rounded-xl max-h-32 overflow-y-auto">
+                                    {availableTags.map(tag => (
+                                        <button
+                                            key={tag}
+                                            onClick={() => {
+                                                if (excludeTags.includes(tag)) {
+                                                    setExcludeTags(excludeTags.filter(t => t !== tag));
+                                                } else {
+                                                    setExcludeTags([...excludeTags, tag]);
+                                                }
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${excludeTags.includes(tag)
+                                                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                                                }`}
+                                        >
+                                            {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 italic">
+                                    No hay etiquetas creadas.
+                                </div>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Tamaño de lote</label>
+                            <input
+                                type="number"
+                                value={batchSize}
+                                onChange={(e) => setBatchSize(parseInt(e.target.value) || 50)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
                         </div>
                     </div>
 
@@ -366,7 +424,8 @@ export default function CampaignsPage() {
                         </button>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* Campaign List */}
             <div className="space-y-4">
@@ -443,6 +502,6 @@ export default function CampaignsPage() {
                     );
                 })}
             </div>
-        </div>
+        </div >
     );
 }

@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData();
         const file = formData.get("file") as File;
         const globalTagsStr = formData.get("tags") as string || "";
+        const listId = formData.get("listId") as string || null;
         const globalTags = globalTagsStr.split(',').map((t: string) => t.trim()).filter(Boolean);
 
         if (!file) {
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
                             email: email || undefined,
                             tags: { set: tags.length > 0 ? tags : undefined },
                             context: Object.keys(additionalData).length > 0 ? additionalData : undefined,
+                            ...(listId ? { lists: { connect: { id: listId } } } : {})
                         },
                         create: {
                             organizationId,
@@ -144,6 +146,7 @@ export async function POST(request: NextRequest) {
                             tags,
                             status: 'NEW',
                             context: Object.keys(additionalData).length > 0 ? additionalData : undefined,
+                            ...(listId ? { lists: { connect: { id: listId } } } : {})
                         },
                     });
                 } else {
@@ -157,6 +160,7 @@ export async function POST(request: NextRequest) {
                             tags,
                             status: 'NEW',
                             context: Object.keys(additionalData).length > 0 ? additionalData : undefined,
+                            ...(listId ? { lists: { connect: { id: listId } } } : {})
                         },
                     });
                 }

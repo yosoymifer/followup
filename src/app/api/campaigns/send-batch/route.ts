@@ -50,8 +50,16 @@ export async function POST(req: Request) {
             whereClause.tags = { hasSome: segment.tags };
         }
 
+        if (segment.excludeTags && segment.excludeTags.length > 0) {
+            whereClause.NOT = { tags: { hasSome: segment.excludeTags } };
+        }
+
         if (segment.statuses && segment.statuses.length > 0) {
             whereClause.status = { in: segment.statuses };
+        }
+
+        if (segment.listId) {
+            whereClause.lists = { some: { id: segment.listId } };
         }
 
         const takeSize = batchSizeOverride ? parseInt(batchSizeOverride) : campaign.batchSize;

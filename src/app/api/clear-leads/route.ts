@@ -11,22 +11,63 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        // Delete all messages first (foreign key constraint)
-        const deletedMessages = await prisma.message.deleteMany({
-            where: {
-                lead: { organizationId }
-            }
-        });
+        const body = await request.json().catch(() => ({}));
+        const { listId } = body;
 
-        // Delete all leads
-        const deletedLeads = await prisma.lead.deleteMany({
-            where: { organizationId }
-        });
+        let deletedMessagesCount = 0;
+        let deletedLeadsCount = 0;
+
+        if (listId) {
+            // Check if list belongs to organization
+            const list = await prisma.list.findFirst({
+                where: { id: listId, organizationId }
+            });
+
+            if (!list) {
+                return NextResponse.json({ error: "Lista no encontrada" }, { status: 404 });
+            }
+
+            // Delete messages for leads in this list
+            const deletedMessages = await prisma.message.deleteMany({
+                where: {
+                    lead: {
+                        lists: { some: { id: listId } }
+                    }
+                }
+            });
+            deletedMessagesCount = deletedMessages.count;
+
+            // Delete leads in this list
+            const deletedLeads = await prisma.lead.deleteMany({
+                where: {
+                    lists: { some: { id: listId } }
+                }
+            });
+            deletedLeadsCount = deletedLeads.count;
+
+            // Delete the list itself
+            await prisma.list.delete({ where: { id: listId } });
+
+        } else {
+            // Delete all messages first (foreign key constraint)
+            const deletedMessages = await prisma.message.deleteMany({
+                where: {
+                    lead: { organizationId }
+                }
+            });
+            deletedMessagesCount = deletedMessages.count;
+
+            // Delete all leads
+            const deletedLeads = await prisma.lead.deleteMany({
+                where: { organizationId }
+            });
+            deletedLeadsCount = deletedLeads.count;
+        }
 
         return NextResponse.json({
             success: true,
-            deletedLeads: deletedLeads.count,
-            deletedMessages: deletedMessages.count,
+            deletedLeads: deletedLeadsCount,
+            deletedMessages: deletedMessagesCount,
         });
 
     } catch (error: any) {

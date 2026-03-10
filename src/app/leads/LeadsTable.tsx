@@ -9,10 +9,11 @@ import {
     Clock,
     AlertCircle,
     MessageSquare,
+    Tag,
 } from 'lucide-react';
 import Pagination from '@/components/Pagination';
 import { LeadActions } from './LeadActions';
-import LeadTagsEditor from './LeadTagsEditor';
+import LeadDetailsModal from './LeadDetailsModal';
 
 
 const StatusBadge = ({ status }: { status: string }) => {
@@ -41,6 +42,7 @@ export default function LeadsTable({ initialLeads, totalLeads }: LeadsTableProps
     const [pageSize, setPageSize] = useState(25);
     const [leads, setLeads] = useState(initialLeads);
     const [loading, setLoading] = useState(false);
+    const [selectedLead, setSelectedLead] = useState<any | null>(null);
 
     const totalPages = Math.ceil(totalLeads / pageSize);
 
@@ -100,36 +102,32 @@ export default function LeadsTable({ initialLeads, totalLeads }: LeadsTableProps
                         </thead>
                         <tbody className="divide-y divide-slate-800">
                             {leads.length > 0 ? leads.map((lead: any) => (
-                                <tr key={lead.id} className="hover:bg-slate-800/30 transition-colors group">
+                                <tr
+                                    key={lead.id}
+                                    onClick={() => setSelectedLead(lead)}
+                                    className="hover:bg-slate-800/30 transition-colors group cursor-pointer"
+                                >
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-white">{lead.firstName} {lead.lastName}</div>
 
-                                        {/* Additional context data */}
-                                        {lead.context && (
-                                            <div className="flex flex-col gap-0.5 mt-1.5 text-[11px]">
-                                                {lead.context.fase && (
-                                                    <div className="text-slate-400">
-                                                        <span className="text-slate-600">Fase:</span> {lead.context.fase}
-                                                    </div>
-                                                )}
-                                                {lead.context.fuente && (
-                                                    <div className="text-slate-400">
-                                                        <span className="text-slate-600">Fuente:</span> {lead.context.fuente}
-                                                    </div>
-                                                )}
-                                                {lead.context['días desde la fecha del último cambiar de estado'] && (
-                                                    <div className="text-slate-400">
-                                                        <span className="text-slate-600">Días:</span> {lead.context['días desde la fecha del último cambiar de estado']}
-                                                    </div>
+                                        {/* Truncated Tags */}
+                                        {lead.tags && lead.tags.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                {lead.tags.slice(0, 2).map((tag: string) => (
+                                                    <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center gap-1">
+                                                        <Tag className="w-2.5 h-2.5" /> {tag}
+                                                    </span>
+                                                ))}
+                                                {lead.tags.length > 2 && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                                                        +{lead.tags.length - 2}
+                                                    </span>
                                                 )}
                                             </div>
                                         )}
-
-                                        {/* Tags */}
-                                        <div className="mt-2">
-                                            <LeadTagsEditor leadId={lead.id} initialTags={lead.tags} />
+                                        <div className="text-[10px] text-slate-500 mt-1 italic group-hover:text-slate-400 transition-colors">
+                                            Click para detalles
                                         </div>
-
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-1">
@@ -160,7 +158,7 @@ export default function LeadsTable({ initialLeads, totalLeads }: LeadsTableProps
                                             <span className="font-mono">{lead._count?.messages || 0}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                                         <LeadActions leadId={lead.id} leadName={`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Desconocido'} />
                                     </td>
                                 </tr>
@@ -191,6 +189,18 @@ export default function LeadsTable({ initialLeads, totalLeads }: LeadsTableProps
                     />
                 )}
             </div>
+
+            {/* Modal */}
+            {selectedLead && (
+                <LeadDetailsModal
+                    lead={selectedLead}
+                    onClose={() => {
+                        setSelectedLead(null);
+                        // Refresh to fetch updated tags if they edited them inside the modal
+                        fetchLeads(currentPage, pageSize);
+                    }}
+                />
+            )}
         </>
     );
 }

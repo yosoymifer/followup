@@ -38,7 +38,9 @@ export async function POST(req: Request) {
         const segmentFilter: any = { organizationId, phone: { not: null } };
         if (segment?.excludeActive) segmentFilter.sequenceActive = false;
         if (segment?.tags?.length) segmentFilter.tags = { hasSome: segment.tags };
+        if (segment?.excludeTags?.length) segmentFilter.NOT = { tags: { hasSome: segment.excludeTags } };
         if (segment?.statuses?.length) segmentFilter.status = { in: segment.statuses };
+        if (segment?.listId) segmentFilter.lists = { some: { id: segment.listId } };
 
         const totalLeads = await prisma.lead.count({ where: segmentFilter });
 

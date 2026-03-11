@@ -26,112 +26,121 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
+        const bodyString = JSON.stringify(body, null, 2);
 
-        // 1. Log full body for debugging in production
-        console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
+        // 1. Log EVERYTHING early to avoid missing any Meta event
+        console.log('--- WhatsApp Webhook Start ---');
+        console.log('[Webhook] Full Body Received:', bodyString);
 
-        const entry = body.entry?.[0];
-        const changes = entry?.changes?.[0];
-        const value = changes?.value;
-        const message = value?.messages?.[0];
+        if (!body.entry || !Array.isArray(body.entry)) {
+            console.log('[Webhook] No entries found or not an array');
+            return NextResponse.json({ success: true });
+        }
 
-        if (message) {
-            const from = message.from;
-            const waMessageId = message.id;
+        for (const entry of body.entry) {
+            for (const change of entry.changes || []) {
+                const value = change.value;
+                if (!value) continue;
 
-            // Extract content from different message types
-            let content = '';
-            let type = message.type || 'unknown';
-
-            if (message.text) {
-                content = message.text.body;
-            } else if (message.button) {
-                // Quick Reply Buttons (legacy or simple)
-                content = message.button.text || message.button.payload || '';
-                type = 'button_reply';
-            } else if (message.interactive) {
-                // Interactive Buttons (list_reply or button_reply)
-                if (message.interactive.type === 'button_reply') {
-                    content = message.interactive.button_reply?.title || message.interactive.button_reply?.id || '';
-                } else if (message.interactive.type === 'list_reply') {
-                    content = message.interactive.list_reply?.title || message.interactive.list_reply?.id || '';
-                }
-                type = 'interactive_' + message.interactive.type;
-            } else if (type === 'button') {
-                // Some quick replies come as type: "button"
-                content = message.button?.text || message.button?.payload || '';
-            } else {
-                // Unknown type (e.g., location, document, sticker, fallback)
-                content = `[Formato no soportado: ${type}]`;
-            }
-
-            // Fallback for button payload if content is still empty
-            if (!content && message.button?.payload) {
-                content = message.button.payload;
-            }
-
-            console.log(`[Webhook] Incoming ${type} from ${from}: "${content}"`);
-
-            // Find Lead by phone number
-            const lead = await prisma.lead.findFirst({
-                where: { phone: from }
-            });
-
-            if (lead) {
-                console.log(`[Webhook] Lead found: ${lead.firstName} (${lead.id}). AI Enabled: ${lead.aiEnabled}`);
-                
-                // Store Message
-                await prisma.message.create({
-                    data: {
-                        leadId: lead.id,
-                        content: content || `[${type}]`,
-                        direction: 'INBOUND',
-                        waMessageId: waMessageId,
-                        status: 'RECEIVED'
+                // A. Handle Statuses (Delivered, Read, etc.)
+                if (value.statuses && Array.isArray(value.statuses)) {
+                    for (const statusUpdate of value.statuses) {
+                        const waMessageId = statusUpdate.id;
+                        const newStatus = statusUpdate.status?.toUpperCase();
+                        if (waMessageId && newStatus) {
+                            console.log(`[Webhook] Status Update: ${waMessageId} -> ${newStatus}`);
+                            await prisma.message.updateMany({
+                                where: { waMessageId },
+                                data: { status: newStatus },
+                            });
+                        }
                     }
-                });
-
-                // Update Lead's 24h Meta window tracker
-                await prisma.lead.update({
-                    where: { id: lead.id },
-                    data: { lastInboundMessageAt: new Date() } as any
-                });
-
-                // Proceed with AI Agent response if content exists
-                if (content && lead.aiEnabled) {
-                    try {
-                        console.log(`[Webhook] Triggering AI Agent for lead ${lead.id}...`);
-                        await processLeadResponse(lead.id, content);
-                    } catch (aiError) {
-                        console.error('[Webhook] AI Agent Error:', aiError);
-                    }
-                } else if (!lead.aiEnabled) {
-                    console.log(`[Webhook] AI is DISABLED for lead ${lead.id}. Skipping response.`);
                 }
-            } else {
-                console.warn(`[Webhook] Message from unknown lead: ${from}`);
+
+                // B. Handle Messages (Text, Buttons, Interactive, etc.)
+                if (value.messages && Array.isArray(value.messages)) {
+                    for (const message of value.messages) {
+                        const from = (message.from || '').replace(/\D/g, ''); // Clean number (no +, no spaces)
+                        const waMessageId = message.id;
+                        const type = message.type || 'unknown';
+
+                        let content = '';
+
+                        // Advanced Content Extraction
+                        if (message.text) {
+                            content = message.text.body;
+                        } else if (message.button) {
+                            // Quick Reply from Template (type: "button" or has .button)
+                            content = message.button.text || message.button.payload || '';
+                        } else if (message.interactive) {
+                            // Interactive button/list reply
+                            const interactive = message.interactive;
+                            if (interactive.type === 'button_reply') {
+                                content = interactive.button_reply?.title || interactive.button_reply?.id || '';
+                            } else if (interactive.type === 'list_reply') {
+                                content = interactive.list_reply?.title || interactive.list_reply?.id || '';
+                            }
+                        }
+
+                        // Fallback if content is still empty but it's a known interactive/button type
+                        if (!content && (type === 'button' || type === 'interactive')) {
+                            console.log(`[Webhook] Warning: Empty content for type ${type}. Full msg:`, JSON.stringify(message));
+                        }
+
+                        console.log(`[Webhook] Processed type:${type} from:${from} msg:"${content}"`);
+
+                        // Find Lead
+                        const lead = await prisma.lead.findFirst({
+                            where: { 
+                                OR: [
+                                    { phone: from },
+                                    { phone: `+${from}` }, // Just in case stored with plus
+                                    { phone: { endsWith: from } } // Match suffixes for safety
+                                ]
+                            }
+                        });
+
+                        if (lead) {
+                            console.log(`[Webhook] Lead Found: ${lead.firstName} (${lead.id}). AI:${lead.aiEnabled}`);
+                            
+                            // Store Inbound Message
+                            await prisma.message.create({
+                                data: {
+                                    leadId: lead.id,
+                                    content: content || `[${type}]`,
+                                    direction: 'INBOUND',
+                                    waMessageId: waMessageId,
+                                    status: 'RECEIVED'
+                                }
+                            });
+
+                            // Update 24h window
+                            await prisma.lead.update({
+                                where: { id: lead.id },
+                                data: { lastInboundMessageAt: new Date() } as any
+                            });
+
+                            // Trigger AI
+                            if (content && lead.aiEnabled) {
+                                try {
+                                    console.log(`[Webhook] Executing AI for lead ${lead.id}`);
+                                    await processLeadResponse(lead.id, content);
+                                } catch (aiError) {
+                                    console.error('[Webhook] AI Process Error:', aiError);
+                                }
+                            }
+                        } else {
+                            console.warn(`[Webhook] Lead NOT found in DB for phone: ${from}`);
+                        }
+                    }
+                }
             }
         }
 
-        // Handle status updates (delivered, read, etc.)
-        const statuses = value?.statuses;
-        if (statuses?.length) {
-            for (const statusUpdate of statuses) {
-                const waMessageId = statusUpdate.id;
-                const newStatus = statusUpdate.status?.toUpperCase(); // DELIVERED, READ, FAILED
-
-                if (waMessageId && newStatus) {
-                    await prisma.message.updateMany({
-                        where: { waMessageId },
-                        data: { status: newStatus },
-                    });
-                }
-            }
-        }
-
+        console.log('--- WhatsApp Webhook End ---');
         return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('Error in WhatsApp Webhook:', error);
+    } catch (error: any) {
+        console.error('[Webhook] CRITICAL ERROR:', error.message);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

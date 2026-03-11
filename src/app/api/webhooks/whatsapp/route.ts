@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { processLeadResponse } from '@/lib/agents/bookingAgent';
+import { logToFile } from '@/lib/logger';
 
 // 1. GET Request: Verification for Meta Webhooks
 export async function GET(req: Request) {
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
 
-    logToFile('Webhook Verification Attempt', { mode, token: token === process.env.WA_VERIFY_TOKEN ? 'MATCH' : 'MISMATCH' }, 'WEBHOOK_VERIFY');
+    await logToFile('Webhook Verification Attempt', { mode, token: token === process.env.WA_VERIFY_TOKEN ? 'MATCH' : 'MISMATCH' }, 'WEBHOOK_VERIFY');
 
     if (mode && token) {
         if (mode === 'subscribe' && token === process.env.WA_VERIFY_TOKEN) {
@@ -25,17 +26,16 @@ export async function GET(req: Request) {
 
 // 2. POST Request: Handle incoming messages/statuses
 // Simplified: store message in DB. n8n handles AI agent logic.
-import { logToFile } from '@/lib/logger';
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
         
         // 1. Log EVERYTHING to the persistent file
-        logToFile('[Webhook] Full Body Received', body);
+        await logToFile('[Webhook] Full Body Received', body);
 
         if (!body.entry || !Array.isArray(body.entry)) {
-            logToFile('[Webhook] No entries found or not an array');
+            await logToFile('[Webhook] No entries found or not an array');
             return NextResponse.json({ success: true });
         }
 
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
                         const waMessageId = statusUpdate.id;
                         const newStatus = statusUpdate.status?.toUpperCase();
                         if (waMessageId && newStatus) {
-                            logToFile(`[Webhook] Status Update: ${waMessageId} -> ${newStatus}`);
+                            await logToFile(`[Webhook] Status Update: ${waMessageId} -> ${newStatus}`);
                             await prisma.message.updateMany({
                                 where: { waMessageId },
                                 data: { status: newStatus },
@@ -82,10 +82,10 @@ export async function POST(req: Request) {
                         }
 
                         if (!content && (type === 'button' || type === 'interactive')) {
-                            logToFile(`[Webhook] Warning: Empty content for type ${type}`, message);
+                            await logToFile(`[Webhook] Warning: Empty content for type ${type}`, message);
                         }
 
-                        logToFile(`[Webhook] Processed type:${type} from:${from} msg:"${content}"`);
+                        await logToFile(`[Webhook] Processed type:${type} from:${from} msg:"${content}"`);
 
                         const lead = await prisma.lead.findFirst({
                             where: { 
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
                         });
 
                         if (lead) {
-                            logToFile(`[Webhook] Lead Found: ${lead.firstName} (${lead.id}). AI:${lead.aiEnabled}`);
+                            await logToFile(`[Webhook] Lead Found: ${lead.firstName} (${lead.id}). AI:${lead.aiEnabled}`);
                             
                             await prisma.message.create({
                                 data: {
@@ -117,14 +117,14 @@ export async function POST(req: Request) {
 
                             if (content && lead.aiEnabled) {
                                 try {
-                                    logToFile(`[Webhook] Executing AI for lead ${lead.id}`);
+                                    await logToFile(`[Webhook] Executing AI for lead ${lead.id}`);
                                     await processLeadResponse(lead.id, content);
                                 } catch (aiError: any) {
-                                    logToFile('[Webhook] AI Process Error', aiError.message);
+                                    await logToFile('[Webhook] AI Process Error', aiError.message);
                                 }
                             }
                         } else {
-                            logToFile(`[Webhook] Lead NOT found in DB for phone: ${from}`);
+                            await logToFile(`[Webhook] Lead NOT found in DB for phone: ${from}`);
                         }
                     }
                 }
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        logToFile('[Webhook] CRITICAL ERROR', error.message);
+        await logToFile('[Webhook] CRITICAL ERROR', error.message);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

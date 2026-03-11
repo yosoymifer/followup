@@ -8,18 +8,23 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || 'dummy_key_for_build',
 });
 
+import { logToFile } from '@/lib/logger';
+
 export async function processLeadResponse(leadId: string, incomingMessage: string) {
     const lead = await prisma.lead.findUnique({
         where: { id: leadId },
         include: { messages: { take: 10, orderBy: { createdAt: 'desc' } }, organization: true }
     });
 
-    if (!lead) throw new Error('Lead not found');
+    if (!lead) {
+        await logToFile(`[FollowUp AI] Lead NOT found: ${leadId}`, null, 'ERROR');
+        throw new Error('Lead not found');
+    }
 
-    console.log(`[FollowUp AI] Processing incoming message from ${lead.phone}: "${incomingMessage}"`);
+    await logToFile(`[FollowUp AI] Processing from ${lead.phone}`, { incomingMessage });
 
     if (!lead.aiEnabled) {
-        console.log(`[FollowUp AI] Skipping message for lead ${lead.id} because AI is disabled.`);
+        await logToFile(`[FollowUp AI] Skipping - AI DISABLED for ${lead.id}`);
         return null;
     }
 
@@ -52,39 +57,44 @@ REGLAS DE ORO:
 6. Mantén tus respuestas breves, amigables y conversacionales (máximo 3 frases).
 `;
 
-    console.log(`[FollowUp AI] Calling OpenAI for lead ${lead.id}...`);
-    const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: incomingMessage }
-        ]
-    });
-
-    const aiMessage = response.choices[0].message;
-    const content = aiMessage.content || "Entendido. ¿Deseas agendar una llamada en https://semanainmobiliaria.com/agendar-llamada ?";
-
-    console.log(`[FollowUp AI] AI Response generated for ${lead.phone}: "${content.substring(0, 50)}..."`);
-
-    // Save outbound message to DB
-    await prisma.message.create({
-        data: {
-            leadId: lead.id,
-            content: content,
-            direction: 'OUTBOUND',
-            aiGenerated: true,
-            status: 'SENT'
-        }
-    });
-
-    // Send via WhatsApp
-    console.log(`[FollowUp AI] Sending response to WhatsApp for ${lead.phone}`);
+    await logToFile(`[FollowUp AI] Calling OpenAI for lead ${lead.id}...`);
     try {
-        await sendWhatsAppMessage(lead.organizationId, lead.phone!, content);
-        console.log(`[FollowUp AI] Successfully sent to WhatsApp for ${lead.phone}`);
-    } catch (sendError) {
-        console.error(`[FollowUp AI] Failed to send WhatsApp message for ${lead.phone}:`, sendError);
-    }
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: incomingMessage }
+            ]
+        });
 
-    return content;
+        const aiMessage = response.choices[0].message;
+        const content = aiMessage.content || "Entendido. ¿Deseas agendar una llamada en https://semanainmobiliaria.com/agendar-llamada ?";
+
+        await logToFile(`[FollowUp AI] AI Response generated`, { content });
+
+        // Save outbound message to DB
+        await prisma.message.create({
+            data: {
+                leadId: lead.id,
+                content: content,
+                direction: 'OUTBOUND',
+                aiGenerated: true,
+                status: 'SENT'
+            }
+        });
+
+        // Send via WhatsApp
+        await logToFile(`[FollowUp AI] Sending back to WhatsApp`, { phone: lead.phone });
+        try {
+            await sendWhatsAppMessage(lead.organizationId, lead.phone!, content);
+            await logToFile(`[FollowUp AI] Successfully sent to WhatsApp`);
+        } catch (sendError: any) {
+            await logToFile(`[FollowUp AI] WhatsApp SEND ERROR`, sendError.message, 'ERROR');
+        }
+
+        return content;
+    } catch (openaiError: any) {
+        await logToFile('[FollowUp AI] OpenAI ERROR', openaiError.message, 'ERROR');
+        return null;
+    }
 }

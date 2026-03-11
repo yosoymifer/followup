@@ -1,33 +1,37 @@
-import fs from 'fs';
-import path from 'path';
+import prisma from '@/lib/prisma';
 
-const LOG_FILE = path.join(process.cwd(), 'webhook_debug.log');
-
-export function logToFile(message: string, data?: any) {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${message} ${data ? JSON.stringify(data, null, 2) : ''}\n---\n`;
-    
+export async function logToFile(message: string, data?: any, type: string = 'INFO') {
     try {
-        fs.appendFileSync(LOG_FILE, logEntry);
-        // Also keep console log for local dev
-        console.log(message, data || '');
+        console.log(`[${type}] ${message}:`, data || '');
+        
+        await prisma.webhookLog.create({
+            data: {
+                type,
+                message,
+                payload: data || {}
+            }
+        });
     } catch (err) {
-        console.error('Failed to write to log file:', err);
+        console.error('Failed to log to database:', err);
     }
 }
 
-export function getLogs() {
+export async function getLogs() {
     try {
-        if (!fs.existsSync(LOG_FILE)) return 'No logs found.';
-        return fs.readFileSync(LOG_FILE, 'utf8');
+        const logs = await prisma.webhookLog.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 100
+        });
+        
+        return logs.map((l: any) => `[${l.createdAt.toISOString()}] [${l.type}] ${l.message}\nPayload: ${JSON.stringify(l.payload, null, 2)}\n---`).join('\n\n');
     } catch (err) {
-        return 'Error reading logs.';
+        return 'Error reading logs from database.';
     }
 }
 
-export function clearLogs() {
+export async function clearLogs() {
     try {
-        fs.writeFileSync(LOG_FILE, '');
+        await prisma.webhookLog.deleteMany({});
         return true;
     } catch (err) {
         return false;

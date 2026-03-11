@@ -190,3 +190,11 @@ model Media {
 
   @@index([organizationId])
 }
+
+model WebhookLog {
+  id        String   @id @default(cuid())
+  type      String   // "WHATS_RECEIVE", "WHATS_STATUS", "AI_PROCESS", "ERROR"
+  payload   Json?
+  message   String?  @db.Text
+  createdAt DateTime @default(now())
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getLogs, clearLogs } from '@/lib/logger';
+import { getLogs, clearLogs, logToFile } from '@/lib/logger';
 import { auth } from '@/auth';
 
 export async function GET() {
@@ -8,7 +8,10 @@ export async function GET() {
         return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const logs = getLogs();
+    // Force a log entry to verify the system is working
+    await logToFile('Admin Log Viewer accessed', { user: session.user?.email }, 'HEARTBEAT');
+
+    const logs = await getLogs();
     
     // Return logs as plain text for easy reading
     return new NextResponse(logs, {

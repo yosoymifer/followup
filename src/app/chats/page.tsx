@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { MessageSquare, Send, Sparkles, User, Search, RefreshCw, PowerOff } from "lucide-react";
+import { MessageSquare, Send, Sparkles, User, Search, RefreshCw, PowerOff, Trash2 } from "lucide-react";
+
 
 interface ChatLead {
     id: string;
@@ -35,6 +36,7 @@ export default function ChatsPage() {
     const [inputText, setInputText] = useState("");
     const [sending, setSending] = useState(false);
     const [isAiEnabled, setIsAiEnabled] = useState(true);
+    const [isClearing, setIsClearing] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -146,6 +148,8 @@ export default function ChatsPage() {
         }
     };
 
+
+
     const activeLead = leads.find(l => l.id === selectedLeadId);
 
     return (
@@ -230,8 +234,8 @@ export default function ChatsPage() {
                             <button
                                 onClick={toggleAI}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${isAiEnabled
-                                        ? "bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20"
-                                        : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
+                                    ? "bg-purple-500/10 text-purple-400 border-purple-500/30 hover:bg-purple-500/20"
+                                    : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
                                     }`}
                             >
                                 {isAiEnabled ? (
@@ -261,8 +265,8 @@ export default function ChatsPage() {
                                             <div className="max-w-[75%] lg:max-w-[60%]">
                                                 <div
                                                     className={`p-3 rounded-2xl text-sm ${isLead
-                                                            ? 'bg-slate-800 text-slate-200 rounded-tl-sm'
-                                                            : 'bg-indigo-600 text-white rounded-tr-sm'
+                                                        ? 'bg-slate-800 text-slate-200 rounded-tl-sm'
+                                                        : 'bg-indigo-600 text-white rounded-tr-sm'
                                                         }`}
                                                 >
                                                     <p className="whitespace-pre-wrap">{msg.content}</p>

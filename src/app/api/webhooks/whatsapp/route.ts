@@ -54,6 +54,9 @@ export async function POST(req: Request) {
                     content = message.interactive.list_reply?.title || '';
                 }
                 type = 'interactive_' + message.interactive.type;
+            } else {
+                // Unknown type (e.g., location, document, sticker, fallback)
+                content = `[Formato no soportado: ${type}] Detalles: ${JSON.stringify(message)}`;
             }
 
             console.log(`[Webhook] Incoming ${type} from ${from}: "${content}"`);

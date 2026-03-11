@@ -27,6 +27,9 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
+        // 1. Log full body for debugging in production if needed
+        // console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
+
         const entry = body.entry?.[0];
         const changes = entry?.changes?.[0];
         const value = changes?.value;
@@ -43,20 +46,23 @@ export async function POST(req: Request) {
             if (message.text) {
                 content = message.text.body;
             } else if (message.button) {
-                // Quick Reply Buttons
-                content = message.button.text;
+                // Quick Reply Buttons (legacy or simple)
+                content = message.button.text || message.button.payload || '';
                 type = 'button_reply';
             } else if (message.interactive) {
                 // Interactive Buttons (list_reply or button_reply)
                 if (message.interactive.type === 'button_reply') {
-                    content = message.interactive.button_reply?.title || '';
+                    content = message.interactive.button_reply?.title || message.interactive.button_reply?.id || '';
                 } else if (message.interactive.type === 'list_reply') {
-                    content = message.interactive.list_reply?.title || '';
+                    content = message.interactive.list_reply?.title || message.interactive.list_reply?.id || '';
                 }
                 type = 'interactive_' + message.interactive.type;
+            } else if (type === 'button') {
+                // Some quick replies come as type: "button"
+                content = message.button?.text || message.button?.payload || '';
             } else {
                 // Unknown type (e.g., location, document, sticker, fallback)
-                content = `[Formato no soportado: ${type}] Detalles: ${JSON.stringify(message)}`;
+                content = `[Formato no soportado: ${type}]`;
             }
 
             console.log(`[Webhook] Incoming ${type} from ${from}: "${content}"`);
@@ -67,6 +73,8 @@ export async function POST(req: Request) {
             });
 
             if (lead) {
+                console.log(`[Webhook] Lead found: ${lead.firstName} (${lead.id}). AI Enabled: ${lead.aiEnabled}`);
+                
                 // Store Message
                 await prisma.message.create({
                     data: {
@@ -87,10 +95,13 @@ export async function POST(req: Request) {
                 // Proceed with AI Agent response if content exists
                 if (content && lead.aiEnabled) {
                     try {
+                        console.log(`[Webhook] Triggering AI Agent for lead ${lead.id}...`);
                         await processLeadResponse(lead.id, content);
                     } catch (aiError) {
-                        console.error('AI Agent Error:', aiError);
+                        console.error('[Webhook] AI Agent Error:', aiError);
                     }
+                } else if (!lead.aiEnabled) {
+                    console.log(`[Webhook] AI is DISABLED for lead ${lead.id}. Skipping response.`);
                 }
             } else {
                 console.warn(`[Webhook] Message from unknown lead: ${from}`);

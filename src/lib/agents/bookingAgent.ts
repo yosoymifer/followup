@@ -52,6 +52,7 @@ REGLAS DE ORO:
 6. Mantén tus respuestas breves, amigables y conversacionales (máximo 3 frases).
 `;
 
+    console.log(`[FollowUp AI] Calling OpenAI for lead ${lead.id}...`);
     const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -62,6 +63,8 @@ REGLAS DE ORO:
 
     const aiMessage = response.choices[0].message;
     const content = aiMessage.content || "Entendido. ¿Deseas agendar una llamada en https://semanainmobiliaria.com/agendar-llamada ?";
+
+    console.log(`[FollowUp AI] AI Response generated for ${lead.phone}: "${content.substring(0, 50)}..."`);
 
     // Save outbound message to DB
     await prisma.message.create({
@@ -75,8 +78,13 @@ REGLAS DE ORO:
     });
 
     // Send via WhatsApp
-    console.log(`[FollowUp AI] Sending response to WhatsApp: "${content}"`);
-    await sendWhatsAppMessage(lead.organizationId, lead.phone!, content);
+    console.log(`[FollowUp AI] Sending response to WhatsApp for ${lead.phone}`);
+    try {
+        await sendWhatsAppMessage(lead.organizationId, lead.phone!, content);
+        console.log(`[FollowUp AI] Successfully sent to WhatsApp for ${lead.phone}`);
+    } catch (sendError) {
+        console.error(`[FollowUp AI] Failed to send WhatsApp message for ${lead.phone}:`, sendError);
+    }
 
     return content;
 }

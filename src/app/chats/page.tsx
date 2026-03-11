@@ -90,6 +90,30 @@ export default function ChatsPage() {
         }
     }, [selectedLeadId]);
 
+    // Polling for live updates
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchLeads();
+            if (selectedLeadId) {
+                // Background refresh of the active chat
+                const refreshChat = async () => {
+                    try {
+                        const res = await fetch(`/api/chats/${selectedLeadId}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            setMessages(data.lead.messages || []);
+                        }
+                    } catch (e) {
+                        console.error("Polling error:", e);
+                    }
+                };
+                refreshChat();
+            }
+        }, 5000); // 5 seconds
+
+        return () => clearInterval(interval);
+    }, [selectedLeadId, search]);
+
     const handleSend = async () => {
         if (!inputText.trim() || !selectedLeadId) return;
         setSending(true);

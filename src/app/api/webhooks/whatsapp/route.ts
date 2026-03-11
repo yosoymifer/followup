@@ -27,8 +27,8 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
-        // 1. Log full body for debugging in production if needed
-        // console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
+        // 1. Log full body for debugging in production
+        console.log('[Webhook] Full Body:', JSON.stringify(body, null, 2));
 
         const entry = body.entry?.[0];
         const changes = entry?.changes?.[0];
@@ -63,6 +63,11 @@ export async function POST(req: Request) {
             } else {
                 // Unknown type (e.g., location, document, sticker, fallback)
                 content = `[Formato no soportado: ${type}]`;
+            }
+
+            // Fallback for button payload if content is still empty
+            if (!content && message.button?.payload) {
+                content = message.button.payload;
             }
 
             console.log(`[Webhook] Incoming ${type} from ${from}: "${content}"`);

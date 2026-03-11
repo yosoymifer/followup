@@ -16,6 +16,8 @@ export async function processLeadResponse(leadId: string, incomingMessage: strin
 
     if (!lead) throw new Error('Lead not found');
 
+    console.log(`[FollowUp AI] Processing incoming message from ${lead.phone}: "${incomingMessage}"`);
+
     if (!lead.aiEnabled) {
         console.log(`[FollowUp AI] Skipping message for lead ${lead.id} because AI is disabled.`);
         return null;
@@ -145,6 +147,7 @@ HERRAMIENTAS DISPONIBLES:
     });
 
     // Send via WhatsApp
+    console.log(`[FollowUp AI] Sending response to WhatsApp: "${content}"`);
     await sendWhatsAppMessage(lead.organizationId, lead.phone!, content);
 
     return content;

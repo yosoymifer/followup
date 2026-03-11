@@ -34,8 +34,29 @@ export async function POST(req: Request) {
 
         if (message) {
             const from = message.from;
-            const content = message.text?.body;
             const waMessageId = message.id;
+
+            // Extract content from different message types
+            let content = '';
+            let type = message.type || 'unknown';
+
+            if (message.text) {
+                content = message.text.body;
+            } else if (message.button) {
+                // Quick Reply Buttons
+                content = message.button.text;
+                type = 'button_reply';
+            } else if (message.interactive) {
+                // Interactive Buttons (list_reply or button_reply)
+                if (message.interactive.type === 'button_reply') {
+                    content = message.interactive.button_reply?.title || '';
+                } else if (message.interactive.type === 'list_reply') {
+                    content = message.interactive.list_reply?.title || '';
+                }
+                type = 'interactive_' + message.interactive.type;
+            }
+
+            console.log(`[Webhook] Incoming ${type} from ${from}: "${content}"`);
 
             // Find Lead by phone number
             const lead = await prisma.lead.findFirst({
@@ -47,7 +68,7 @@ export async function POST(req: Request) {
                 await prisma.message.create({
                     data: {
                         leadId: lead.id,
-                        content: content || '[Media/Unsupported]',
+                        content: content || `[${type}]`,
                         direction: 'INBOUND',
                         waMessageId: waMessageId,
                         status: 'RECEIVED'
@@ -60,16 +81,16 @@ export async function POST(req: Request) {
                     data: { lastInboundMessageAt: new Date() } as any
                 });
 
-                console.log(`Received message from ${lead.phone}: ${content}`);
-
-                // Proceed with AI Agent response
-                try {
-                    await processLeadResponse(lead.id, content || '');
-                } catch (aiError) {
-                    console.error('AI Agent Error:', aiError);
+                // Proceed with AI Agent response if content exists
+                if (content && lead.aiEnabled) {
+                    try {
+                        await processLeadResponse(lead.id, content);
+                    } catch (aiError) {
+                        console.error('AI Agent Error:', aiError);
+                    }
                 }
             } else {
-                console.warn(`Message from unknown lead: ${from}`);
+                console.warn(`[Webhook] Message from unknown lead: ${from}`);
             }
         }
 

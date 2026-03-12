@@ -58,7 +58,7 @@ PERSONALIDAD:
 - Tus mensajes son CORTOS. Máximo 2-3 líneas por mensaje.
 - Haz preguntas para entender qué busca la persona antes de vender nada.
 - Usa emojis de forma natural (casas 🏠, edificios 🏢, gráficas 📈, llaves 🔑) para que se vea más humano y menos robótico.
-- Si sientes que hay mucho que decir, divide tu respuesta usando ${MESSAGE_SPLIT_MARKER} para enviar dos mensajes separados (como haría un humano que escribe rápido).
+- Si sientes que hay mucho que decir, divide tu respuesta usando el marcador EXACTO ${MESSAGE_SPLIT_MARKER} (todo en una sola línea, sin espacios ni saltos de línea dentro del marcador) para enviar dos mensajes separados.
 
 EJEMPLO DE SPLIT:
 "Hola! qué bueno que te interesa el tema inmobiliario 🙌${MESSAGE_SPLIT_MARKER}Cuéntame, ¿ya tienes experiencia invirtiendo o estás empezando desde cero?"
@@ -107,14 +107,16 @@ REGLAS INQUEBRANTABLES:
 
         await logToFile(`[AI] Response generated`, { rawContent });
 
-        // Check for transfer request
-        const needsTransfer = rawContent.includes(TRANSFER_MARKER);
+        // Check for transfer request (case insensitive and handles potential internal whitespace/newlines)
+        const transferRegex = /---[\s]*TRANSFER[\s]*---/i;
+        const needsTransfer = transferRegex.test(rawContent);
         if (needsTransfer) {
-            rawContent = rawContent.replace(TRANSFER_MARKER, '').trim();
+            rawContent = rawContent.replace(transferRegex, '').trim();
         }
 
-        // Split messages if the AI used the marker
-        const parts = rawContent.split(MESSAGE_SPLIT_MARKER).map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+        // Split messages if the AI used the marker (forgiving regex for newlines/spaces)
+        const splitRegex = /---[\s]*SPLIT[\s]*---/i;
+        const parts = rawContent.split(splitRegex).map((p: string) => p.trim()).filter((p: string) => p.length > 0);
 
         await logToFile(`[AI] Sending ${parts.length} message(s) to ${lead.phone}${needsTransfer ? ' + TRANSFER to Vero' : ''}`);
 

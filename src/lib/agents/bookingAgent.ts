@@ -17,6 +17,10 @@ function sleep(ms: number) {
 }
 
 export async function processLeadResponse(leadId: string, incomingMessage: string) {
+    // Add a random delay between 3 and 5 seconds to feel more human
+    const initialDelay = Math.floor(Math.random() * (5000 - 3000 + 1)) + 3000;
+    await sleep(initialDelay);
+
     const lead = await prisma.lead.findUnique({
         where: { id: leadId },
         include: { messages: { take: 20, orderBy: { createdAt: 'desc' } }, organization: true }
@@ -53,6 +57,7 @@ PERSONALIDAD:
 - NO uses listas con viñetas ni formatos tipo email. Escribe como en WhatsApp.
 - Tus mensajes son CORTOS. Máximo 2-3 líneas por mensaje.
 - Haz preguntas para entender qué busca la persona antes de vender nada.
+- Usa emojis de forma natural (casas 🏠, edificios 🏢, gráficas 📈, llaves 🔑) para que se vea más humano y menos robótico.
 - Si sientes que hay mucho que decir, divide tu respuesta usando ${MESSAGE_SPLIT_MARKER} para enviar dos mensajes separados (como haría un humano que escribe rápido).
 
 EJEMPLO DE SPLIT:
@@ -75,6 +80,7 @@ DATOS DEL LEAD:
 - Tags: ${lead.tags.length > 0 ? lead.tags.join(', ') : 'Ninguno'}
 
 REGLAS INQUEBRANTABLES:
+- NUNCA uses formato Markdown para enlaces (ej: [texto](url)). En WhatsApp solo pega la URL directamente.
 - NUNCA menciones precios ni costes. Si preguntan, di que eso se ve en la asesoría personalizada.
 - El enlace para agendar: https://semanainmobiliaria.com/agendar-llamada
 - Solo da el enlace de grabaciones si el lead dice que no pudo ver las clases: https://semanainmobiliaria.com/grabacion
@@ -153,7 +159,7 @@ REGLAS INQUEBRANTABLES:
 }
 
 /**
- * Transfer conversation to Vero:
+ * Transfer conversation to Vero (or configured number):
  * 1. Send Vero a WhatsApp message with lead info
  * 2. Disable AI for this lead so Vero handles it manually
  */
@@ -162,27 +168,30 @@ async function handleTransferToVero(lead: any) {
     const leadPhone = lead.phone || 'Sin teléfono';
     const waLink = `wa.me/${leadPhone}`;
 
-    await logToFile(`[AI] 🔄 TRANSFERRING lead ${lead.id} (${leadName}) to Vero`);
+    // Get dynamic phone from DB or fallback to Vero
+    const transferPhone = lead.organization.transferPhoneNumber || VERO_PHONE;
 
-    // Message to Vero
+    await logToFile(`[AI] 🔄 TRANSFERRING lead ${lead.id} (${leadName}) to ${transferPhone}`);
+
+    // Message to Vero/Asistente
     const veroMessage = `🔔 *Transferencia de lead*\n\n` +
-        `Hola Vero! Te transfiero a *${leadName}*.\n` +
+        `Hola! Te transfiero a *${leadName}*.\n` +
         `Esta persona quiere más información y agendar una llamada.\n\n` +
         `📱 WhatsApp: ${waLink}\n\n` +
         `Haz clic para ir directo a la conversación 👆`;
 
     try {
-        await sendWhatsAppMessage(lead.organizationId, VERO_PHONE, veroMessage);
-        await logToFile(`[AI] ✅ Notification sent to Vero for lead ${leadName}`);
+        await sendWhatsAppMessage(lead.organizationId, transferPhone, veroMessage);
+        await logToFile(`[AI] ✅ Notification sent to ${transferPhone} for lead ${leadName}`);
     } catch (veroError: any) {
-        await logToFile(`[AI] ❌ Failed to notify Vero`, veroError.message, 'ERROR');
+        await logToFile(`[AI] ❌ Failed to notify assistant`, veroError.message, 'ERROR');
     }
 
-    // Disable AI for this lead so Vero handles it
+    // Disable AI for this lead so human handles it
     await prisma.lead.update({
         where: { id: lead.id },
         data: { aiEnabled: false } as any
     });
-    await logToFile(`[AI] AI disabled for lead ${lead.id} - Vero takes over`);
+    await logToFile(`[AI] AI disabled for lead ${lead.id} - Human takes over`);
 }
 

@@ -23,6 +23,7 @@ export async function GET() {
             waAccessToken: true,
             defaultSequenceId: true,
             masterPrompt: true,
+            transferPhoneNumber: true,
         },
     });
 
@@ -51,7 +52,7 @@ export async function PUT(req: Request) {
         const allowedFields = [
             'name', 'ghlAccessToken', 'ghlLocationId', 'ghlPipelineId',
             'ghlStageMap', 'waPhoneNumberId', 'waAccessToken', 'defaultSequenceId',
-            'masterPrompt'
+            'masterPrompt', 'transferPhoneNumber'
         ];
 
         const updateData: any = {};

@@ -28,6 +28,7 @@ interface OrgSettings {
     waAccessToken: string | null;
     defaultSequenceId: string | null;
     masterPrompt: string | null;
+    transferPhoneNumber: string | null;
 }
 
 interface GHLStage {
@@ -66,6 +67,7 @@ export default function SettingsPage() {
 
     // AI Context
     const [masterPrompt, setMasterPrompt] = useState("");
+    const [transferPhoneNumber, setTransferPhoneNumber] = useState("");
 
     // Pipeline selector
     const [pipelines, setPipelines] = useState<GHLPipeline[]>([]);
@@ -97,6 +99,7 @@ export default function SettingsPage() {
                 setWaBusinessAccountId(data.waBusinessAccountId || "");
                 setWaAccessToken(data.waAccessToken || "");
                 setMasterPrompt(data.masterPrompt || "");
+                setTransferPhoneNumber(data.transferPhoneNumber || "");
             }
         } catch (e) {
             console.error("Error fetching settings:", e);
@@ -160,6 +163,7 @@ export default function SettingsPage() {
             if (waBusinessAccountId) body.waBusinessAccountId = waBusinessAccountId;
         } else if (section === "ai") {
             body.masterPrompt = masterPrompt;
+            body.transferPhoneNumber = transferPhoneNumber;
         }
 
 
@@ -258,6 +262,19 @@ export default function SettingsPage() {
                         rows={6}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-y"
                     />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Número de Transferencia (Human Handoff)</label>
+                        <input
+                            value={transferPhoneNumber}
+                            onChange={(e) => setTransferPhoneNumber(e.target.value)}
+                            placeholder="ej: 34621384241"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">Número de WhatsApp (con código de país, sin +) al que Samuel enviará las notificaciones de transferencia.</p>
+                    </div>
                 </div>
 
                 <div className="flex justify-end pt-2">

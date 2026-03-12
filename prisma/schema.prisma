@@ -18,6 +18,7 @@ model Organization {
   waPhoneNumberId   String?
   waBusinessAccountId String?
   waAccessToken     String?
+  transferPhoneNumber String?    // Phone number for human handoff (Vero or anyone else)
   defaultSequenceId String?
   masterPrompt      String?    @db.Text
   leads             Lead[]

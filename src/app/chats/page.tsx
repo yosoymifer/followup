@@ -90,26 +90,33 @@ export default function ChatsPage() {
         }
     }, [selectedLeadId]);
 
-    // Polling for live updates
+    // Smooth background sync (no visible flicker)
     useEffect(() => {
         const interval = setInterval(() => {
-            fetchLeads();
+            // Silently refresh leads list
+            fetch(`/api/chats?search=${encodeURIComponent(search)}`)
+                .then(res => res.ok ? res.json() : null)
+                .then(data => { if (data?.leads) setLeads(data.leads); })
+                .catch(() => {});
+
+            // Silently refresh active chat (only update if new messages exist)
             if (selectedLeadId) {
-                // Background refresh of the active chat
-                const refreshChat = async () => {
-                    try {
-                        const res = await fetch(`/api/chats/${selectedLeadId}`);
-                        if (res.ok) {
-                            const data = await res.json();
-                            setMessages(data.lead.messages || []);
+                fetch(`/api/chats/${selectedLeadId}`)
+                    .then(res => res.ok ? res.json() : null)
+                    .then(data => {
+                        if (data?.lead?.messages) {
+                            setMessages((prev: Message[]) => {
+                                // Only update if message count changed (avoids UI flicker)
+                                if (prev.length !== data.lead.messages.length) {
+                                    return data.lead.messages;
+                                }
+                                return prev;
+                            });
                         }
-                    } catch (e) {
-                        console.error("Polling error:", e);
-                    }
-                };
-                refreshChat();
+                    })
+                    .catch(() => {});
             }
-        }, 5000); // 5 seconds
+        }, 10000); // Every 10 seconds
 
         return () => clearInterval(interval);
     }, [selectedLeadId, search]);

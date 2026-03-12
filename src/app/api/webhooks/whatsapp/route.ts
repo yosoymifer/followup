@@ -61,6 +61,9 @@ export async function POST(req: Request) {
 
                 // B. Handle Messages
                 if (value.messages && Array.isArray(value.messages)) {
+                    // Extract contact profile name from Meta payload
+                    const contactName = value.contacts?.[0]?.profile?.name || '';
+
                     for (const message of value.messages) {
                         const from = (message.from || '').replace(/\D/g, '');
                         const waMessageId = message.id;
@@ -100,6 +103,9 @@ export async function POST(req: Request) {
                         if (lead) {
                             await logToFile(`[Webhook] Lead Found: ${lead.firstName} (${lead.id}). AI:${lead.aiEnabled}`);
                             
+                            // Update lead name from WhatsApp profile if not set or is placeholder
+                            const needsNameUpdate = contactName && (!lead.firstName || lead.firstName.toLowerCase() === 'test');
+                            
                             await prisma.message.create({
                                 data: {
                                     leadId: lead.id,
@@ -110,9 +116,17 @@ export async function POST(req: Request) {
                                 }
                             });
 
+                            // Parse WhatsApp name into first/last and update lead
+                            const nameParts = contactName ? contactName.split(' ') : [];
                             await prisma.lead.update({
                                 where: { id: lead.id },
-                                data: { lastInboundMessageAt: new Date() } as any
+                                data: {
+                                    lastInboundMessageAt: new Date(),
+                                    ...(needsNameUpdate ? {
+                                        firstName: nameParts[0] || contactName,
+                                        lastName: nameParts.slice(1).join(' ') || undefined
+                                    } : {})
+                                } as any
                             });
 
                             if (content && lead.aiEnabled) {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
     Plus, Play, Pause, Trash2, Send, BarChart3, AlertTriangle,
-    Sparkles, FileText, Settings2, Clock, CheckCircle, XCircle
+    Sparkles, FileText, Settings2, Clock, CheckCircle, XCircle, RefreshCw
 } from "lucide-react";
 
 interface Campaign {
@@ -242,6 +242,26 @@ export default function CampaignsPage() {
             showFb("❌ Error de conexión al procesar");
         } finally {
             setSendingBatchId(null);
+        }
+    };
+
+    const handleResend = async (id: string) => {
+        if (!confirm("¿Reenviar esta campaña? Se resetearán los contadores y podrás volver a procesar lotes.")) return;
+        try {
+            const res = await fetch("/api/campaigns", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, action: 'resend' }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showFb("✅ Campaña reactivada. Puedes volver a procesar lotes.");
+                fetchCampaigns();
+            } else {
+                showFb("❌ " + data.error);
+            }
+        } catch {
+            showFb("❌ Error de conexión");
         }
     };
 
@@ -625,6 +645,14 @@ export default function CampaignsPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    {campaign.status === "COMPLETED" && (
+                                        <button
+                                            onClick={() => handleResend(campaign.id)}
+                                            className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all shadow-md flex items-center gap-1.5"
+                                        >
+                                            <RefreshCw className="w-3 h-3" /> Reenviar
+                                        </button>
+                                    )}
                                     {campaign.status !== "COMPLETED" && (
                                         <button
                                             onClick={() => handleProcessBatch(campaign.id, campaign.batchSize)}

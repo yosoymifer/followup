@@ -49,8 +49,8 @@ export async function POST(req: Request) {
                         data: {
                             organizationId,
                             phone,
-                            firstName: 'Test',
-                            lastName: 'Lead',
+                            firstName: 'Número',
+                            lastName: 'de Prueba',
                             tags: ['TEST_LEAD'],
                         }
                     });
@@ -115,10 +115,10 @@ export async function PUT(req: Request) {
 
     try {
         const body = await req.json();
-        const { id, status } = body;
+        const { id, status, action } = body;
 
-        if (!id || !status) {
-            return NextResponse.json({ error: 'ID and status are required' }, { status: 400 });
+        if (!id) {
+            return NextResponse.json({ error: 'ID is required' }, { status: 400 });
         }
 
         const existing = await prisma.campaign.findFirst({
@@ -126,6 +126,38 @@ export async function PUT(req: Request) {
         });
         if (!existing) {
             return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+        }
+
+        // Handle resend action: reset counters and reactivate
+        if (action === 'resend') {
+            // Recalculate total leads
+            const segment = existing.segment as any;
+            let totalLeads = 0;
+
+            if (segment?.targetType === 'TEST_NUMBERS') {
+                totalLeads = segment.testLeadIds?.length || 0;
+            } else {
+                const segmentFilter: any = { organizationId, phone: { not: null } };
+                if (segment?.excludeActive) segmentFilter.sequenceActive = false;
+                if (segment?.targetType === 'TAGS' && segment?.tags?.length) {
+                    segmentFilter.tags = { hasSome: segment.tags };
+                } else if (segment?.targetType === 'LIST' && segment?.listId) {
+                    segmentFilter.lists = { some: { id: segment.listId } };
+                }
+                if (segment?.excludeTags?.length) segmentFilter.NOT = { tags: { hasSome: segment.excludeTags } };
+                totalLeads = await prisma.lead.count({ where: segmentFilter });
+            }
+
+            const updated = await prisma.campaign.update({
+                where: { id },
+                data: { status: 'ACTIVE', sentCount: 0, totalLeads, completedAt: null },
+            });
+            return NextResponse.json({ success: true, campaign: updated });
+        }
+
+        // Normal status update
+        if (!status) {
+            return NextResponse.json({ error: 'Status is required' }, { status: 400 });
         }
 
         const updated = await prisma.campaign.update({

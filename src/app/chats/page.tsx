@@ -29,6 +29,8 @@ export default function ChatsPage() {
     const [loadingLeads, setLoadingLeads] = useState(true);
     const [search, setSearch] = useState("");
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
 
     // Active Chat State
     const [messages, setMessages] = useState<Message[]>([]);
@@ -44,25 +46,34 @@ export default function ChatsPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    const fetchLeads = async () => {
-        setLoadingLeads(true);
+    const fetchLeads = async (isLoadMore = false) => {
+        if (isLoadMore) setLoadingMore(true);
+        else setLoadingLeads(true);
+        
         try {
-            const res = await fetch(`/api/chats?search=${encodeURIComponent(search)}`);
+            const currentOffset = isLoadMore ? leads.length : 0;
+            const res = await fetch(`/api/chats?search=${encodeURIComponent(search)}&offset=${currentOffset}&limit=50`);
             if (res.ok) {
                 const data = await res.json();
-                setLeads(data.leads || []);
+                if (isLoadMore) {
+                    setLeads(prev => [...prev, ...(data.leads || [])]);
+                } else {
+                    setLeads(data.leads || []);
+                }
+                setHasMore(data.hasMore);
             }
         } catch (e) {
             console.error(e);
         } finally {
             setLoadingLeads(false);
+            setLoadingMore(false);
         }
     };
 
     useEffect(() => {
         // Debounce search
         const timer = setTimeout(() => {
-            fetchLeads();
+            fetchLeads(false);
         }, 500);
         return () => clearTimeout(timer);
     }, [search]);
@@ -93,8 +104,10 @@ export default function ChatsPage() {
     // Smooth background sync (no visible flicker)
     useEffect(() => {
         const interval = setInterval(() => {
-            // Silently refresh leads list
-            fetch(`/api/chats?search=${encodeURIComponent(search)}`)
+            // Silently refresh current leads list (first page + visible ones)
+            // To keep it simple, we refresh up to the current total count
+            const currentCount = leads.length > 0 ? leads.length : 50;
+            fetch(`/api/chats?search=${encodeURIComponent(search)}&offset=0&limit=${currentCount}`)
                 .then(res => res.ok ? res.json() : null)
                 .then(data => { if (data?.leads) setLeads(data.leads); })
                 .catch(() => {});
@@ -119,7 +132,7 @@ export default function ChatsPage() {
         }, 10000); // Every 10 seconds
 
         return () => clearInterval(interval);
-    }, [selectedLeadId, search]);
+    }, [selectedLeadId, search, leads.length]);
 
     const handleSend = async () => {
         if (!inputText.trim() || !selectedLeadId) return;
@@ -241,6 +254,22 @@ export default function ChatsPage() {
                                     </div>
                                 </button>
                             ))}
+
+                            {hasMore && (
+                                <div className="p-4 border-t border-slate-800/50">
+                                    <button
+                                        onClick={() => fetchLeads(true)}
+                                        disabled={loadingMore}
+                                        className="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                                    >
+                                        {loadingMore ? (
+                                            <RefreshCw className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                            "Cargar más"
+                                        )}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

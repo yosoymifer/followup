@@ -13,6 +13,8 @@ export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
         const search = searchParams.get('search') || '';
+        const limit = parseInt(searchParams.get('limit') || '50');
+        const offset = parseInt(searchParams.get('offset') || '0');
 
         // Find leads that have messages
         const leads = await prisma.lead.findMany({
@@ -33,17 +35,21 @@ export async function GET(req: Request) {
                     take: 1
                 }
             },
-            orderBy: { lastContactedAt: 'desc' }, // Order by most recent interaction
-            take: 50
+            orderBy: { lastInboundMessageAt: 'desc' }, // Order by most recent interaction
+            take: limit + 1, // Take one extra to check if there are more
+            skip: offset
         });
 
+        const hasMore = leads.length > limit;
+        const results = hasMore ? leads.slice(0, limit) : leads;
+
         // Format for the UI menu
-        const formattedLeads = leads.map(lead => ({
+        const formattedLeads = results.map(lead => ({
             id: lead.id,
             name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || lead.phone,
             phone: lead.phone,
             lastMessage: lead.messages[0]?.content || '',
-            lastMessageAt: lead.messages[0]?.createdAt || lead.lastContactedAt,
+            lastMessageAt: lead.messages[0]?.createdAt || lead.lastInboundMessageAt,
             hasUnread: lead.messages[0]?.direction === 'INBOUND', // Simple logic for unread indicator
             tags: lead.tags,
             aiEnabled: (lead as any).aiEnabled
@@ -56,7 +62,10 @@ export async function GET(req: Request) {
             return timeB - timeA;
         });
 
-        return NextResponse.json({ leads: formattedLeads });
+        return NextResponse.json({ 
+            leads: formattedLeads,
+            hasMore
+        });
     } catch (error: any) {
         console.error('Error fetching chats list:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

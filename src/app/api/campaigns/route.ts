@@ -148,6 +148,12 @@ export async function PUT(req: Request) {
                 totalLeads = await prisma.lead.count({ where: segmentFilter });
             }
 
+            // Unlink old messages from this campaign so leads become eligible again
+            await prisma.message.updateMany({
+                where: { campaignId: id },
+                data: { campaignId: null } as any,
+            });
+
             const updated = await prisma.campaign.update({
                 where: { id },
                 data: { status: 'ACTIVE', sentCount: 0, totalLeads, completedAt: null },

@@ -4,7 +4,9 @@ import OpenAI from 'openai';
 import { logToFile } from '@/lib/logger';
 
 const MESSAGE_SPLIT_MARKER = '---SPLIT---';
+const TRANSFER_MARKER = '---TRANSFER---';
 const SPLIT_DELAY_MS = 1500; // 1.5 second pause between split messages
+const VERO_PHONE = '34621384241'; // Vero's WhatsApp number (without +)
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || 'dummy_key_for_build',
@@ -41,6 +43,7 @@ export async function processLeadResponse(leadId: string, incomingMessage: strin
         }));
 
     const masterContext = lead.organization.masterPrompt || '';
+    const leadName = `${lead.firstName || ''}${lead.lastName ? ' ' + lead.lastName : ''}`.trim() || 'amigo/a';
 
     const systemPrompt = `Eres Samuel, el asistente de Pascual Ariño por WhatsApp. Hablas como una persona REAL, no como una IA.
 
@@ -60,9 +63,15 @@ FLUJO DE CONVERSACIÓN:
 2. Luego conecta sus necesidades con lo que ofrece el programa.
 3. Cuando sientas que hay interés real, sugiere agendar la llamada de forma natural.
 
+TRANSFERENCIA A HUMANO:
+Si la persona pide hablar con un humano, con un asesor real, tiene problemas para agendar, no logra acceder al link, o muestra frustración, debes transferir la conversación.
+Para transferir, responde EXACTAMENTE con el marcador ${TRANSFER_MARKER} al FINAL de tu mensaje de despedida.
+Tu mensaje de despedida debe ser algo como: "Perfecto, ya te comunico con mi asistente Vero, ella te va a ayudar personalmente 😊"
+IMPORTANTE: El marcador ${TRANSFER_MARKER} debe ir AL FINAL de tu respuesta. No escribas nada después del marcador.
+
 ${masterContext ? `INFORMACIÓN DEL PROGRAMA:\n${masterContext}\n` : ''}
 DATOS DEL LEAD:
-- Nombre: ${lead.firstName || 'No disponible'}${lead.lastName ? ' ' + lead.lastName : ''}
+- Nombre: ${leadName}
 - Tags: ${lead.tags.length > 0 ? lead.tags.join(', ') : 'Ninguno'}
 
 REGLAS INQUEBRANTABLES:
@@ -88,14 +97,20 @@ REGLAS INQUEBRANTABLES:
             max_tokens: 300,
         });
 
-        const rawContent = response.choices[0].message.content || 'Cuéntame más, ¿qué te interesa del mundo inmobiliario?';
+        let rawContent = response.choices[0].message.content || 'Cuéntame más, ¿qué te interesa del mundo inmobiliario?';
 
         await logToFile(`[AI] Response generated`, { rawContent });
+
+        // Check for transfer request
+        const needsTransfer = rawContent.includes(TRANSFER_MARKER);
+        if (needsTransfer) {
+            rawContent = rawContent.replace(TRANSFER_MARKER, '').trim();
+        }
 
         // Split messages if the AI used the marker
         const parts = rawContent.split(MESSAGE_SPLIT_MARKER).map((p: string) => p.trim()).filter((p: string) => p.length > 0);
 
-        await logToFile(`[AI] Sending ${parts.length} message(s) to ${lead.phone}`);
+        await logToFile(`[AI] Sending ${parts.length} message(s) to ${lead.phone}${needsTransfer ? ' + TRANSFER to Vero' : ''}`);
 
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
@@ -125,10 +140,49 @@ REGLAS INQUEBRANTABLES:
             }
         }
 
+        // Handle transfer to Vero
+        if (needsTransfer) {
+            await handleTransferToVero(lead);
+        }
+
         return rawContent;
     } catch (openaiError: any) {
         await logToFile('[AI] OpenAI ERROR', openaiError.message, 'ERROR');
         return null;
     }
+}
+
+/**
+ * Transfer conversation to Vero:
+ * 1. Send Vero a WhatsApp message with lead info
+ * 2. Disable AI for this lead so Vero handles it manually
+ */
+async function handleTransferToVero(lead: any) {
+    const leadName = `${lead.firstName || ''}${lead.lastName ? ' ' + lead.lastName : ''}`.trim() || 'Sin nombre';
+    const leadPhone = lead.phone || 'Sin teléfono';
+    const waLink = `wa.me/${leadPhone}`;
+
+    await logToFile(`[AI] 🔄 TRANSFERRING lead ${lead.id} (${leadName}) to Vero`);
+
+    // Message to Vero
+    const veroMessage = `🔔 *Transferencia de lead*\n\n` +
+        `Hola Vero! Te transfiero a *${leadName}*.\n` +
+        `Esta persona quiere más información y agendar una llamada.\n\n` +
+        `📱 WhatsApp: ${waLink}\n\n` +
+        `Haz clic para ir directo a la conversación 👆`;
+
+    try {
+        await sendWhatsAppMessage(lead.organizationId, VERO_PHONE, veroMessage);
+        await logToFile(`[AI] ✅ Notification sent to Vero for lead ${leadName}`);
+    } catch (veroError: any) {
+        await logToFile(`[AI] ❌ Failed to notify Vero`, veroError.message, 'ERROR');
+    }
+
+    // Disable AI for this lead so Vero handles it
+    await prisma.lead.update({
+        where: { id: lead.id },
+        data: { aiEnabled: false } as any
+    });
+    await logToFile(`[AI] AI disabled for lead ${lead.id} - Vero takes over`);
 }
 

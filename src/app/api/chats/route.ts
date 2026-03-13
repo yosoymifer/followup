@@ -35,7 +35,10 @@ export async function GET(req: Request) {
                     take: 1
                 }
             },
-            orderBy: { lastInboundMessageAt: 'desc' }, // Order by most recent interaction
+            orderBy: [
+                { lastInboundMessageAt: { sort: 'desc', nulls: 'last' } as any },
+                { lastContactedAt: 'desc' }
+            ],
             take: limit + 1, // Take one extra to check if there are more
             skip: offset
         });

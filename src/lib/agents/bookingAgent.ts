@@ -138,6 +138,12 @@ REGLAS INQUEBRANTABLES:
             try {
                 await sendWhatsAppMessage(lead.organizationId, lead.phone!, part);
                 await logToFile(`[AI] Part ${i + 1}/${parts.length} sent`);
+
+                // Update lastContactedAt for AI messages too
+                await prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { lastContactedAt: new Date() }
+                });
             } catch (sendError: any) {
                 await logToFile(`[AI] WhatsApp SEND ERROR (part ${i + 1})`, sendError.message, 'ERROR');
             }

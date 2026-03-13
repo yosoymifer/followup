@@ -122,6 +122,7 @@ export async function POST(req: Request) {
                                 where: { id: lead.id },
                                 data: {
                                     lastInboundMessageAt: new Date(),
+                                    lastContactedAt: new Date(),
                                     ...(needsNameUpdate ? {
                                         firstName: nameParts[0] || contactName,
                                         lastName: nameParts.slice(1).join(' ') || undefined

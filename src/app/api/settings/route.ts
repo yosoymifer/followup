@@ -24,6 +24,7 @@ export async function GET() {
             defaultSequenceId: true,
             masterPrompt: true,
             transferPhoneNumber: true,
+            globalAiEnabled: true,
         },
     });
 
@@ -52,12 +53,13 @@ export async function PUT(req: Request) {
         const allowedFields = [
             'name', 'ghlAccessToken', 'ghlLocationId', 'ghlPipelineId',
             'ghlStageMap', 'waPhoneNumberId', 'waAccessToken', 'defaultSequenceId',
-            'masterPrompt', 'transferPhoneNumber'
+            'masterPrompt', 'transferPhoneNumber', 'globalAiEnabled'
         ];
 
         const updateData: any = {};
         for (const field of allowedFields) {
             if (body[field] !== undefined && body[field] !== '') {
+
                 updateData[field] = body[field];
             }
         }

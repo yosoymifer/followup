@@ -29,6 +29,7 @@ interface OrgSettings {
     defaultSequenceId: string | null;
     masterPrompt: string | null;
     transferPhoneNumber: string | null;
+    globalAiEnabled: boolean;
 }
 
 interface GHLStage {
@@ -68,6 +69,7 @@ export default function SettingsPage() {
     // AI Context
     const [masterPrompt, setMasterPrompt] = useState("");
     const [transferPhoneNumber, setTransferPhoneNumber] = useState("");
+    const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
 
     // Pipeline selector
     const [pipelines, setPipelines] = useState<GHLPipeline[]>([]);
@@ -100,6 +102,7 @@ export default function SettingsPage() {
                 setWaAccessToken(data.waAccessToken || "");
                 setMasterPrompt(data.masterPrompt || "");
                 setTransferPhoneNumber(data.transferPhoneNumber || "");
+                setGlobalAiEnabled(data.globalAiEnabled ?? true);
             }
         } catch (e) {
             console.error("Error fetching settings:", e);
@@ -164,6 +167,7 @@ export default function SettingsPage() {
         } else if (section === "ai") {
             body.masterPrompt = masterPrompt;
             body.transferPhoneNumber = transferPhoneNumber;
+            body.globalAiEnabled = globalAiEnabled;
         }
 
 
@@ -248,9 +252,22 @@ export default function SettingsPage() {
                     <div className="bg-purple-500/10 p-2 rounded-lg">
                         <Settings className="w-6 h-6 text-purple-400" />
                     </div>
-                    <div>
+                    <div className="flex-1">
                         <h2 className="text-lg font-bold text-white">Master Prompt (Contexto IA)</h2>
                         <p className="text-xs text-slate-500">Instrucciones globales sobre tu negocio, ofertas y productos para la IA.</p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-full border border-slate-800">
+                        <div className={`w-2 h-2 rounded-full ${globalAiEnabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                        <span className="text-xs font-bold text-slate-300">Botón de Pánico:</span>
+                        <button
+                            onClick={() => setGlobalAiEnabled(!globalAiEnabled)}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-offset-2 focus:ring-offset-slate-900 ${globalAiEnabled ? 'bg-purple-600' : 'bg-slate-700'}`}
+                            role="switch"
+                            aria-checked={globalAiEnabled}
+                        >
+                            <span className="sr-only">Toggle AI</span>
+                            <span aria-hidden="true" className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${globalAiEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
                     </div>
                 </div>
 

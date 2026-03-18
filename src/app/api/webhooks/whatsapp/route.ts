@@ -97,6 +97,9 @@ export async function POST(req: Request) {
                                     { phone: `+${from}` },
                                     { phone: { endsWith: from } }
                                 ]
+                            },
+                            include: {
+                                organization: true
                             }
                         });
 
@@ -131,11 +134,15 @@ export async function POST(req: Request) {
                             });
 
                             if (content && lead.aiEnabled) {
-                                try {
-                                    await logToFile(`[Webhook] Executing AI for lead ${lead.id}`);
-                                    await processLeadResponse(lead.id, content);
-                                } catch (aiError: any) {
-                                    await logToFile('[Webhook] AI Process Error', aiError.message);
+                                if (lead.organization.globalAiEnabled) {
+                                    try {
+                                        await logToFile(`[Webhook] Executing AI for lead ${lead.id}`);
+                                        await processLeadResponse(lead.id, content);
+                                    } catch (aiError: any) {
+                                        await logToFile('[Webhook] AI Process Error', aiError.message);
+                                    }
+                                } else {
+                                    await logToFile(`[Webhook] AI Ignored (Global Kill Switch ACTIVE) for lead ${lead.id}`);
                                 }
                             }
                         } else {
